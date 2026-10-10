@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>02. Scheduler 深读 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li class="current"><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part III</span> · 源码走读</div>
+      <div class="reading-time">预计阅读 6 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="02-scheduler">02. Scheduler 深读</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 已经知道 vLLM 大致进程拓扑，准备死磕 V1 Scheduler 这 2300 行核心代码的工程师；想把 token budget、preempt、chunked prefill 讲清楚的读者。</p>
+<p><strong>前置阅读：</strong> <a href="01-entry-points.html"><code>01-entry-points.md</code></a>、<a href="../02-core-concepts/02-continuous-batching.html"><code>02-continuous-batching.md</code></a>、<a href="../02-core-concepts/05-chunked-prefill.html"><code>05-chunked-prefill.md</code></a></p>
+<p><strong>耗时：</strong> 约 18 分钟</p>
+<p><strong>学完能：</strong>
+1. 在白板上画出 <code>schedule()</code> 的 5 个阶段（A-E）以及每步对 token budget 的扣减
+2. 解释 <code>_schedule_running</code> 与 <code>_schedule_waiting</code> 各自承担的角色和优先级关系
+3. 准确说出 preempt 的触发条件、被踢顺序，以及 recompute vs swap 两种模式
+4. 解释 AsyncScheduler 把哪一段时间和 forward overlap，理论收益是多少</p>
+</blockquote>
+<p><code>vllm/v1/core/sched/scheduler.py</code> 是 vLLM 最重要的代码文件（2300+ 行）。看懂它就看懂了 vLLM 的灵魂。本节按 <code>schedule()</code> 的执行顺序拆解。</p>
+<hr />
+<h2 id="1-scheduler">1. Scheduler 的状态</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Scheduler</span><span class="p">:</span>
+    <span class="c1"># 队列</span>
+    <span class="n">waiting</span><span class="p">:</span> <span class="n">deque</span><span class="p">[</span><span class="n">Request</span><span class="p">]</span>          <span class="c1"># 等待进入 batch</span>
+    <span class="n">running</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Request</span><span class="p">]</span>           <span class="c1"># 正在跑</span>
+
+    <span class="c1"># 配置</span>
+    <span class="n">scheduler_config</span><span class="p">:</span> <span class="n">SchedulerConfig</span>
+    <span class="n">cache_config</span><span class="p">:</span> <span class="n">CacheConfig</span>
+
+    <span class="c1"># 核心组件</span>
+    <span class="n">kv_cache_manager</span><span class="p">:</span> <span class="n">KVCacheManager</span>   <span class="c1"># 管 block 分配</span>
+    <span class="n">encoder_cache_manager</span><span class="p">:</span> <span class="o">...</span>          <span class="c1"># 多模态用</span>
+    <span class="n">structured_output_manager</span><span class="p">:</span> <span class="o">...</span>      <span class="c1"># JSON / grammar 约束生成</span>
+    <span class="n">connector</span><span class="p">:</span> <span class="n">KVConnector</span> <span class="o">|</span> <span class="kc">None</span>       <span class="c1"># 跨节点 KV 传输</span>
+
+    <span class="c1"># 统计</span>
+    <span class="n">num_lookahead_tokens</span><span class="p">:</span> <span class="nb">int</span>           <span class="c1"># 投机解码用</span>
+    <span class="n">finished_req_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>          <span class="c1"># 上一步刚完成的</span>
+</code></pre></div>
+
+<hr />
+<h2 id="2-schedule">2. <code>schedule()</code> 的整体框架</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">schedule</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SchedulerOutput</span><span class="p">:</span>
+    <span class="c1"># === Step A: 重置每步的临时状态 ===</span>
+    <span class="n">scheduled_new_reqs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">scheduled_cached_reqs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">num_scheduled_tokens</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">token_budget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_num_scheduled_tokens</span>
+
+    <span class="c1"># === Step B: 先调度 running 队列 ===</span>
+    <span class="c1"># 保证已经在跑的请求至少 decode 1 token，剩余 budget 用于 chunked prefill</span>
+    <span class="n">req_to_new_block_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_running</span><span class="p">(</span><span class="n">token_budget</span><span class="p">,</span> <span class="n">num_scheduled_tokens</span><span class="p">)</span>
+
+    <span class="c1"># === Step C: 再调度 waiting 队列 ===</span>
+    <span class="c1"># 看 KV、token budget 是否允许新请求加入</span>
+    <span class="n">new_running</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_waiting</span><span class="p">(</span><span class="n">token_budget</span><span class="p">,</span> <span class="n">num_scheduled_tokens</span><span class="p">)</span>
+
+    <span class="c1"># === Step D: Encoder budget（多模态）===</span>
+    <span class="c1"># vision encoder 也有独立的 budget</span>
+
+    <span class="c1"># === Step E: 组装 SchedulerOutput ===</span>
+    <span class="k">return</span> <span class="n">SchedulerOutput</span><span class="p">(</span>
+        <span class="n">scheduled_new_reqs</span><span class="o">=</span><span class="n">scheduled_new_reqs</span><span class="p">,</span>
+        <span class="n">scheduled_cached_reqs</span><span class="o">=</span><span class="n">scheduled_cached_reqs</span><span class="p">,</span>
+        <span class="n">num_scheduled_tokens</span><span class="o">=</span><span class="n">num_scheduled_tokens</span><span class="p">,</span>
+        <span class="n">total_num_scheduled_tokens</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="n">num_scheduled_tokens</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
+        <span class="n">preempted_req_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">preempted_req_ids</span><span class="p">,</span>
+        <span class="n">finished_req_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">finished_req_ids</span><span class="p">,</span>
+        <span class="o">...</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="3-_schedule_running">3. <code>_schedule_running</code>：保住老用户</h2>
+<p>伪代码（实际更复杂，含 spec decoding、KV connector 等）：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_schedule_running</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">,</span> <span class="n">num_scheduled_tokens</span><span class="p">):</span>
+    <span class="n">new_running</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="p">:</span>
+        <span class="c1"># 决定这个请求本步算几个 token</span>
+        <span class="n">num_new_tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_num_new_tokens_for_req</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">num_new_tokens</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># budget 用完</span>
+            <span class="k">break</span>
+
+        <span class="c1"># 算需要多少新 block</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">kv_cache_manager</span><span class="o">.</span><span class="n">allocate_slots</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">num_new_tokens</span><span class="p">):</span>
+            <span class="c1"># KV 不够！要 preempt</span>
+            <span class="n">victim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>    <span class="c1"># 通常从队尾找</span>
+            <span class="k">if</span> <span class="n">victim</span> <span class="ow">is</span> <span class="n">req</span><span class="p">:</span>
+                <span class="c1"># 没人可以踢了，这个请求自己被踢</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_preempt</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+                <span class="n">num_new_tokens</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_preempt</span><span class="p">(</span><span class="n">victim</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_scheduled_tokens</span><span class="p">[</span><span class="n">req</span><span class="o">.</span><span class="n">request_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">num_new_tokens</span>
+            <span class="n">token_budget</span> <span class="o">-=</span> <span class="n">num_new_tokens</span>
+            <span class="n">new_running</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">running</span> <span class="o">=</span> <span class="n">new_running</span>
+</code></pre></div>
+
+<p><strong>核心逻辑</strong>：</p>
+<ol>
+<li>给每个 running 请求分配本步要算几个 token</li>
+<li>如果 KV 不够，从队尾踢人（preempt）</li>
+<li>踢到自己头上就把自己设回 waiting</li>
+</ol>
+<hr />
+<h2 id="4-_get_num_new_tokens_for_req-token">4. <code>_get_num_new_tokens_for_req</code>：本步算几个 token？</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_get_num_new_tokens_for_req</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">):</span>
+    <span class="c1"># 剩余要算的 prompt token 数</span>
+    <span class="n">remaining_prompt</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">num_prompt_tokens</span> <span class="o">-</span> <span class="n">req</span><span class="o">.</span><span class="n">num_computed_tokens</span>
+
+    <span class="k">if</span> <span class="n">remaining_prompt</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># 还在 prefill 阶段 → chunk</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">remaining_prompt</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_chunk_size</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># 已经在 decode 阶段</span>
+        <span class="c1"># 投机解码会一次提议多个，普通模式是 1</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_lookahead_tokens</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这就是 chunked prefill 的核心：把 "请求长度 - 已算" 切成 budget 大小。</p>
+<hr />
+<h2 id="5-_schedule_waiting">5. <code>_schedule_waiting</code>：让新人进来</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_schedule_waiting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">,</span> <span class="n">num_scheduled_tokens</span><span class="p">):</span>
+    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">waiting</span> <span class="ow">and</span> <span class="n">token_budget</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waiting</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="c1"># peek 不 pop</span>
+
+        <span class="c1"># 检查多模态 encoder 是否有空间（不展开）</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_can_schedule_encoder</span><span class="p">(</span><span class="n">req</span><span class="p">):</span>
+            <span class="k">break</span>
+
+        <span class="c1"># 算 num_new_tokens</span>
+        <span class="n">num_new_tokens</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">num_prompt_tokens</span><span class="p">,</span> <span class="n">token_budget</span><span class="p">,</span> <span class="n">max_chunk_size</span><span class="p">)</span>
+
+        <span class="c1"># 尝试分配 KV</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">kv_cache_manager</span><span class="o">.</span><span class="n">allocate_slots</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">num_new_tokens</span><span class="p">):</span>
+            <span class="k">break</span>   <span class="c1"># 不够，停止往 batch 加新人</span>
+
+        <span class="c1"># 加入 batch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">waiting</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">RUNNING</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+        <span class="n">num_scheduled_tokens</span><span class="p">[</span><span class="n">req</span><span class="o">.</span><span class="n">request_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">num_new_tokens</span>
+        <span class="n">token_budget</span> <span class="o">-=</span> <span class="n">num_new_tokens</span>
+</code></pre></div>
+
+<p><strong>注意</strong>：</p>
+<ul>
+<li>waiting 队列是按 FCFS（或 priority）排序的</li>
+<li>只要 KV 不够或 budget 用完，立刻停止往 batch 塞，<strong>不会跳过等小请求</strong>（避免饥饿）</li>
+</ul>
+<hr />
+<h2 id="6-update_from_output">6. <code>update_from_output</code>：处理上一步的结果</h2>
+<p>每个 step 结束后，把 Worker 返回的 sampled_token_ids 更新到 Request 上：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">update_from_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scheduler_output</span><span class="p">,</span> <span class="n">model_output</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">finished_req_ids</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">req_id</span><span class="p">,</span> <span class="n">sampled_tokens</span> <span class="ow">in</span> <span class="n">model_output</span><span class="o">.</span><span class="n">sampled_token_ids</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">[</span><span class="n">req_id</span><span class="p">]</span>
+
+        <span class="c1"># 1. 把新 token 加到 output</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">output_token_ids</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sampled_tokens</span><span class="p">)</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">num_computed_tokens</span> <span class="o">=</span> <span class="n">scheduler_output</span><span class="o">.</span><span class="n">num_scheduled_tokens</span><span class="p">[</span><span class="n">req_id</span><span class="p">]</span>
+                                  <span class="o">+</span> <span class="n">req</span><span class="o">.</span><span class="n">num_computed_tokens</span>
+
+        <span class="c1"># 2. 检查是否完成</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">sampled_tokens</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">req</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">eos_token_id</span>
+            <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">output_token_ids</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">req</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">max_tokens</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_stop_strings</span><span class="p">(</span><span class="n">req</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_finished</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">finished_req_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">req_id</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># 3. 检查 stop / structured output / spec decoding 等</span>
+
+    <span class="c1"># 4. 收集本步的 EngineCoreOutput，返回给 EngineCore</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">EngineCoreOutput</span><span class="p">(</span><span class="n">req_id</span><span class="p">,</span> <span class="n">new_tokens</span><span class="p">)</span> <span class="k">for</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+<hr />
+<h2 id="7-preemption">7. Preemption 的实际策略</h2>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_preempt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">,</span> <span class="n">preemption_mode</span><span class="o">=</span><span class="s2">"recompute"</span><span class="p">):</span>
+    <span class="c1"># 释放 KV</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">kv_cache_manager</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">preemption_mode</span> <span class="o">==</span> <span class="s2">"recompute"</span><span class="p">:</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">num_computed_tokens</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># swap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kv_cache_manager</span><span class="o">.</span><span class="n">swap_out_to_cpu</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+
+    <span class="n">req</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">RequestStatus</span><span class="o">.</span><span class="n">WAITING</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">waiting</span><span class="o">.</span><span class="n">appendleft</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>  <span class="c1"># 重启时优先级最高</span>
+</code></pre></div>
+
+<p>V1 默认 recompute，前面解释过。</p>
+<p>被 preempt 谁？默认从 running 队尾倒着踢（最晚到的最先牺牲）。priority 模式下选 priority 最低的。</p>
+<hr />
+<h2 id="8">8. 一些"高级"逻辑（速览，初读可先略过）</h2>
+<ul>
+<li><strong>结构化输出（structured output）</strong>：JSON schema / grammar 约束 → 每步 logits 加 mask。Scheduler 会维护 grammar state machine 每步推进。</li>
+<li><strong>投机解码（spec decoding）</strong>：Scheduler 一次性给一个请求分配 <code>1 + num_lookahead_tokens</code> 个 token，Worker 返回的是 "提议 - 验证" 结果。</li>
+<li><strong>多模态 encoder budget</strong>：vision encoder 算图像 embedding 是独立的，要单独计 budget。</li>
+<li><strong>KV connector（disaggregated prefill）</strong>：跨节点传 KV，Scheduler 协调"传完了再 decode"的同步。</li>
+<li><strong>DP / EP</strong>：data parallel 与 expert parallel 下的调度协调（多个 EngineCore 协同）。</li>
+</ul>
+<hr />
+<h2 id="9-async-scheduler">9. Async Scheduler</h2>
+<p><code>vllm/v1/core/sched/async_scheduler.py</code>：让 <code>schedule()</code> 跟上一步的 forward overlap。</p>
+<p>实现思路：</p>
+<ul>
+<li>普通 Scheduler 是 "schedule → forward → update → schedule → ..."</li>
+<li>AsyncScheduler 拆成两个 task：</li>
+<li>schedule_task：每次给 worker 发任务时，<strong>先发任务</strong>，再 await 上次的输出</li>
+<li>也就是说 step N+1 的 schedule 在 step N 的 forward 还在跑时启动</li>
+</ul>
+<p>CPU/GPU overlap 节省 5-10%。</p>
+<hr />
+<h2 id="10">10. 你应该精读的代码片段</h2>
+<p>打开 <code>vllm/v1/core/sched/scheduler.py</code>，重点看：</p>
+<ol>
+<li><code>__init__</code>：所有依赖看一遍</li>
+<li><code>schedule()</code>：主入口</li>
+<li><code>_schedule_running()</code>：含 preemption 逻辑</li>
+<li><code>_schedule_waiting()</code>：含 prefix caching 集成</li>
+<li><code>_get_num_new_tokens_for_req()</code>：chunked prefill 实现处</li>
+<li><code>_preempt()</code>：抢占细节</li>
+<li><code>update_from_output()</code>：状态更新与完成检测</li>
+</ol>
+<p>预计 1-2 小时能扫完。</p>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li><code>schedule()</code> 一次的核心顺序是"先 running 再 waiting"，token budget 是贯穿所有分支的全局账本。</li>
+<li><code>_schedule_running</code> 保 SLA，KV 不够就从队尾 preempt；<code>_schedule_waiting</code> 引入新人，KV/budget 不够立刻停手，避免饥饿。</li>
+<li>chunked prefill 的入口就一个函数 <code>_get_num_new_tokens_for_req</code>，由剩余 prompt 与 budget 取 min 决定本步算多少。</li>
+<li>AsyncScheduler 把"下一步的 schedule"塞到"本步 forward"的等待区，是低开销但很值的 CPU/GPU overlap。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<blockquote>
+<p>不用照着原文复述，重点是把现象、机制、源码入口和取舍讲顺。</p>
+</blockquote>
+<p><strong>1. preempt victim 从队头还是队尾选？</strong></p>
+<p><strong>FCFS 模式</strong>：队尾（<code>self.running.pop()</code>，最近加入 batch 的）。代码（约 line 450）：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy</span> <span class="o">==</span> <span class="n">SchedulingPolicy</span><span class="o">.</span><span class="n">FCFS</span><span class="p">:</span>
+    <span class="n">preempted_req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>         <span class="c1"># 队尾，最后加入的</span>
+</code></pre></div>
+
+<p><strong>PRIORITY 模式</strong>：<code>max((priority, arrival_time))</code>——优先级最低（priority 数值最大）的，同优先级里最晚到的：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy</span> <span class="o">==</span> <span class="n">SchedulingPolicy</span><span class="o">.</span><span class="n">PRIORITY</span><span class="p">:</span>
+    <span class="n">preempted_req</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">priority</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">arrival_time</span><span class="p">),</span>
+    <span class="p">)</span>                                          <span class="c1"># 优先级最低、最晚到的</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">preempted_req</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>为什么 FCFS 选队尾？</strong> 队头是已经跑了最久的请求，踢它损失最大；队尾是最新加入的，工作量小，踢它代价低。这是 SRPT（最短剩余处理时间优先）的近似。</p>
+<p>详见 <a href="02b-scheduling-policies.html"><code>02b-scheduling-policies.md</code></a>。</p>
+<hr />
+<p><strong>2. 32k prefill + <code>max_num_batched_tokens=2048</code>，要几个 step 跑完 prefill？</strong></p>
+<p>每个 step 最多算 2048 token。但<strong>实际每步要先扣 running decode</strong>——假设 batch 里没有其他 running 请求，每步 prefill 满 2048：</p>
+<div class="codehilite"><pre><span></span><code>step 1:  prefill chunk 0..2048    剩 30720 token
+step 2:  prefill chunk 2048..4096 剩 28672 token
+...
+step 16: prefill chunk 30720..32768 剩 0
+step 17: decode 第一个新 token
+</code></pre></div>
+
+<p>→ <strong>16 个 step 跑完 prefill</strong>，第 17 步开始 decode。</p>
+<p>如果同时有 N 个 running decode 请求争 budget：</p>
+<ul>
+<li>每步先扣 N（每 running 1 token）</li>
+<li>剩余 2048-N 给 prefill chunk</li>
+<li>总 step 数 = ⌈32768 / (2048-N)⌉</li>
+</ul>
+<p>例：N=16 个 decode，每 step prefill 2032 token → 需要 ⌈32768/2032⌉ = <strong>17 个 step</strong> 跑完 prefill。</p>
+<p><strong>时间轴</strong>（gantt 风格）：</p>
+<div class="codehilite"><pre><span></span><code>T=0  [decode×16 + prefill 2032 (chunk 0)]   ← 17 个用户在 decode 中, prefill 在并行
+T=1  [decode×16 + prefill 2032 (chunk 1)]
+T=2  [decode×16 + prefill 2032 (chunk 2)]
+...
+T=16 [decode×16 + prefill 2032 (chunk 16)]  ← prefill 完成
+T=17 [decode×17] (新 prefill 请求开始 decode)
+</code></pre></div>
+
+<p>→ <strong>这就是 chunked prefill 的核心好处</strong>：长 prefill 不会阻塞其他人的 decode，每个 step 时长稳定（约 2048 token），TPOT 平稳。</p>
+<hr />
+<p><strong>3. <code>update_from_output</code> 中检测"请求完成"的 3 种条件 + 分支位置。</strong></p>
+<p>源码：<code>vllm/v1/core/sched/scheduler.py::_update_request_with_output</code>（行号会变）</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># ① EOS token</span>
+<span class="k">if</span> <span class="n">new_token_id</span> <span class="o">==</span> <span class="n">request</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">eos_token_id</span><span class="p">:</span>
+    <span class="n">request</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">RequestStatus</span><span class="o">.</span><span class="n">FINISHED_STOPPED</span>
+    <span class="k">return</span> <span class="kc">True</span>
+<span class="c1"># 或：if new_token_id in stop_token_ids:</span>
+
+<span class="c1"># ② max_tokens 达到</span>
+<span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">num_output_tokens</span> <span class="o">&gt;=</span> <span class="n">request</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">:</span>
+    <span class="n">request</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">RequestStatus</span><span class="o">.</span><span class="n">FINISHED_LENGTH_CAPPED</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+<span class="c1"># ③ stop strings（detokenize 后字符串匹配）</span>
+<span class="k">if</span> <span class="n">detokenized</span><span class="o">.</span><span class="n">contains_any</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">stop</span><span class="p">):</span>
+    <span class="n">request</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">RequestStatus</span><span class="o">.</span><span class="n">FINISHED_STOPPED</span>
+    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p>完整代码位置：</p>
+<ul>
+<li>EOS：通常在 <code>_check_stop()</code> 或 <code>_check_finish()</code> 内，对照 <code>eos_token_id</code> / <code>stop_token_ids</code></li>
+<li>max_tokens：对照 <code>num_output_tokens &gt;= max_tokens</code></li>
+<li>stop strings：往往在 detokenizer 端做（<code>vllm/v1/engine/detokenizer.py</code>），因为需要解码完整字符串才能匹配</li>
+</ul>
+<p><strong><code>finish_reason</code></strong> 字段记录是哪种：<code>stop</code> / <code>length</code> / <code>abort</code>，对应 <code>vllm:request_success</code> 这个 Prometheus counter 的 label。</p>
+<hr />
+<p><strong>4. AsyncScheduler 多了哪个 task？为什么能 overlap？正确性问题？</strong></p>
+<p><strong>多了什么</strong>：AsyncScheduler 在 <code>step()</code> 中<strong>提前发起下一步的 schedule</strong>，让它与本步的 GPU forward 重叠：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 普通 Scheduler</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">():</span>
+    <span class="n">so</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">()</span>                  <span class="c1"># CPU</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">execute_model</span><span class="p">(</span><span class="n">so</span><span class="p">)</span>          <span class="c1"># GPU (forward)</span>
+    <span class="n">update_from_output</span><span class="p">(</span><span class="n">so</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+<span class="c1"># AsyncScheduler</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">():</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_forward</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>    <span class="c1"># 等上一步 forward</span>
+    <span class="n">update_from_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_so</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_last_so</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">()</span>              <span class="c1"># 启动新 schedule</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_pending_forward</span> <span class="o">=</span> <span class="n">execute_model_async</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_so</span><span class="p">)</span>  <span class="c1"># 异步发 forward</span>
+    <span class="c1"># 函数返回前 forward 还在跑；下一个 step 进来时再 .result() 收</span>
+</code></pre></div>
+
+<p><strong>为什么能 overlap</strong>：CPU schedule 与 GPU forward 不依赖同一资源（CPU vs GPU stream），可以真正并行。</p>
+<p><strong>正确性问题与解法</strong>：</p>
+<ul>
+<li><strong>新 token 状态没更新就 schedule 下一步</strong>？不会——schedule 不需要新 token 内容，它只需要"running 列表 + KV 占用"，这些上一步已经记好</li>
+<li><strong>新请求 add_request 时机</strong>？AsyncScheduler 仍在 schedule 前同步 add，不会丢失</li>
+<li><strong>preempt 导致状态不一致</strong>？这是真坑——AsyncScheduler 有专门处理"上一步触发 preempt 后下一步的 running 列表"的逻辑（<code>vllm/v1/core/sched/async_scheduler.py</code>），通过把 preempted 请求标记后再继续</li>
+</ul>
+<p>整体收益 5-10%，详见 <a href="../01-overview/02-architecture.html"><code>02-architecture.md</code></a> §6 与本节自检题 5。</p>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>下一节：<a href="03-kv-cache-manager.html"><code>03-kv-cache-manager.md</code></a>（Scheduler 调用的 <code>allocate_slots</code> 内部到底做了什么）</li>
+<li>想看源码：<code>vllm/v1/core/sched/scheduler.py</code>、<code>vllm/v1/core/sched/async_scheduler.py</code></li>
+<li>想动手：<a href="../07-hands-on/03-mini-experiments.html"><code>07-hands-on/03-mini-experiments.md</code></a>（造 preempt、观察调度行为）</li>
+<li>想从生产视角理解：<a href="../08-production-deployment/04-autoscaling-and-capacity.html"><code>08-production-deployment/04-autoscaling-and-capacity.md</code></a>（max-num-batched-tokens、max-num-seqs 等调度参数如何影响容量规划）</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../03-code-walkthrough/01-entry-points.html"><span class="label">上一篇</span><span class="title">01. 入口与引擎主循环</span></a>
+<a class="next" href="../03-code-walkthrough/02b-scheduling-policies.html"><span class="label">下一篇</span><span class="title">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

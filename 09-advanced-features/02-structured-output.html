@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>02. Structured Output：JSON / Regex / Grammar 约束生成 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li class="current"><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part IX</span> · 应用特性</div>
+      <div class="reading-time">预计阅读 6 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="02-structured-outputjson-regex-grammar">02. Structured Output：JSON / Regex / Grammar 约束生成</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 做 Agent / Tool use / Function calling，需要 LLM 严格按 schema 输出的开发者；想理解 grammar 引擎和 sampler 接缝的引擎贡献者。</p>
+<p><strong>前置阅读：</strong> <a href="./01-sampling-and-logits.html"><code>01-sampling-and-logits.md</code></a>、<a href="../03-code-walkthrough/02-scheduler.html"><code>02-scheduler.md</code></a></p>
+<p><strong>耗时：</strong> 约 25 分钟</p>
+<p><strong>学完能：</strong>
+1. 区分 xgrammar / guidance / outlines / lm-format-enforcer 四个后端的取舍
+2. 画出 <code>grammar_init → grammar_bitmask → Sampler mask → accept_tokens</code> 的完整路径
+3. 解释 bitmask 数据结构如何节省显存与算力
+4. 说出结构化输出与投机解码、reasoning model 组合时的注意点</p>
+</blockquote>
+<p>Agent / Tool use / Function calling 的底层支柱：让 LLM <strong>只能</strong>输出符合 schema 的 token。不是 prompt 哄它"请按 JSON 输出"，而是在 logits 层面把不合法 token 直接 mask 掉。代码目录：<code>vllm/v1/structured_output/</code>。</p>
+<hr />
+<h2 id="1">1. 类与文件总览</h2>
+<div class="codehilite"><pre><span></span><code>vllm/v1/structured_output/
+├── __init__.py                   ← StructuredOutputManager（engine-level 调度）
+├── backend_types.py              ← 抽象接口
+│     ├─ StructuredOutputBackend  （后端基类）
+│     ├─ StructuredOutputGrammar  （单请求 grammar 状态机）
+│     └─ StructuredOutputOptions  （JSON / REGEX / GRAMMAR / CHOICE / ...）
+├── backend_xgrammar.py           ← Cornserve xgrammar 实现（默认推荐）
+├── backend_guidance.py           ← Microsoft llguidance（regex / JSON / lark）
+├── backend_outlines.py           ← outlines（社区流行）
+├── backend_lm_format_enforcer.py ← lm-format-enforcer
+├── request.py                    ← StructuredOutputRequest（per-request 状态）
+└── utils.py
+</code></pre></div>
+
+<hr />
+<h2 id="2-4">2. 4 个后端怎么选</h2>
+<table class="three-line">
+<thead>
+<tr>
+<th>后端</th>
+<th>速度</th>
+<th>表达力</th>
+<th>生产推荐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>xgrammar</strong></td>
+<td>最快</td>
+<td>JSON Schema / Lark / Regex</td>
+<td>★★★ 默认</td>
+</tr>
+<tr>
+<td>guidance</td>
+<td>中</td>
+<td>JSON Schema / Regex / lark</td>
+<td>复杂 lark grammar</td>
+</tr>
+<tr>
+<td>outlines</td>
+<td>中</td>
+<td>Regex / JSON / CFG</td>
+<td>历史项目兼容</td>
+</tr>
+<tr>
+<td>lm-format-enforcer</td>
+<td>较慢</td>
+<td>JSON / Regex</td>
+<td>旧栈兼容</td>
+</tr>
+</tbody>
+</table>
+<p>xgrammar 用 <strong>C++ 写的状态机</strong> + <strong>预编译 token mask 表</strong>，每步只查表，比纯 Python 的 outlines 快几个数量级。</p>
+<hr />
+<h2 id="3">3. 抽象接口</h2>
+<p><code>vllm/v1/structured_output/backend_types.py:31,99</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">StructuredOutputGrammar</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""一个请求一份。维护这个请求的 grammar 状态机。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">accept_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request_id</span><span class="p">,</span> <span class="n">tokens</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""把已采样 token 喂回状态机，推进状态。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tokens</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""检查一批 token 是否合法（spec decode 用）。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">rollback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_tokens</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""spec decode 拒绝时回滚状态。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fill_bitmask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bitmask</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""关键：把"当前合法 token"写进 bitmask。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_terminated</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">StructuredOutputBackend</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""全局一份，给所有请求编译 grammar。"""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compile_grammar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request_type</span><span class="p">,</span> <span class="n">grammar_spec</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructuredOutputGrammar</span><span class="p">:</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">allocate_token_bitmask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_num_seqs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">destroy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+
+<p><strong>Bitmask 是核心数据结构</strong>：<code>[max_num_seqs, ceil(vocab_size / 32)]</code> 的 int32 tensor，每 bit 表示一个 token 是否合法。</p>
+<hr />
+<h2 id="4-structuredoutputmanager">4. StructuredOutputManager：引擎级调度</h2>
+<p><code>vllm/v1/structured_output/__init__.py:35</code> 一个 EngineCore 一个。关键属性：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">StructuredOutputManager</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vllm_config</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="p">:</span> <span class="n">StructuredOutputBackend</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_async_grammar_compilation</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">distributed_executor_backend</span> <span class="o">!=</span> <span class="s2">"external_launcher"</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grammar_bitmask</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># 复用 buffer</span>
+        <span class="c1"># Grammar 编译线程池（CPU-bound）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">executor</span> <span class="o">=</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="c1"># 大 batch 时 fill_bitmask 也并行</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">executor_for_fillmask</span> <span class="o">=</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="41-grammar_init">4.1 grammar_init（请求入队时调用）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">grammar_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>                            <span class="c1"># line 114</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># 第一次按用户指定的后端 lazy 创建</span>
+        <span class="n">backend</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">sampling_params</span><span class="o">.</span><span class="n">structured_outputs</span><span class="o">.</span><span class="n">_backend</span>
+        <span class="k">if</span> <span class="n">backend</span> <span class="o">==</span> <span class="s2">"xgrammar"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">XgrammarBackend</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">backend</span> <span class="o">==</span> <span class="s2">"guidance"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">GuidanceBackend</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+        <span class="o">...</span>
+
+    <span class="c1"># async 提交编译，避免 block Scheduler</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_async_grammar_compilation</span><span class="p">:</span>
+        <span class="n">grammar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_grammar</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">grammar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_grammar</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+
+    <span class="n">request</span><span class="o">.</span><span class="n">structured_output_request</span><span class="o">.</span><span class="n">grammar</span> <span class="o">=</span> <span class="n">grammar</span>
+</code></pre></div>
+
+<p><strong>关键设计</strong>：grammar 编译是 CPU 重活（JSON Schema 转 DFA），异步跑在线程池。Scheduler 看到 grammar 还没 ready 时把请求挂在 <code>WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR</code> 状态。</p>
+<h3 id="42-grammar_bitmask">4.2 grammar_bitmask（每步调用）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">grammar_bitmask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="p">,</span> <span class="n">structured_output_request_ids</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>   <span class="c1"># line 203</span>
+    <span class="c1"># 对每个有 grammar 的请求：</span>
+    <span class="c1">#   - 找出当前 grammar 状态下合法 token 集合</span>
+    <span class="c1">#   - 写入 _grammar_bitmask[index]</span>
+    <span class="c1"># 大 batch（&gt;128 个请求）时分块并行</span>
+    <span class="k">if</span> <span class="n">num_reqs</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_bitmask_parallel_threshold</span><span class="p">:</span>
+        <span class="n">batches</span> <span class="o">=</span> <span class="n">split</span> <span class="n">into</span> <span class="n">chunks</span> <span class="n">of</span> <span class="mi">16</span>
+        <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">_async_submit_fill_bitmask</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span> <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">batches</span><span class="p">]</span>
+        <span class="n">wait</span><span class="p">(</span><span class="n">futures</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fill_bitmasks</span><span class="p">(</span><span class="n">all_requests</span><span class="p">)</span>
+</code></pre></div>
+
+<p>bitmask 之后会被传到 Sampler，在 logits 阶段把非法 token mask 成 -inf。</p>
+<hr />
+<h2 id="5">5. 端到端流程：一次结构化输出请求</h2>
+<pre class="mermaid">flowchart TD
+    R1["1. 用户请求带&lt;br/&gt;response_format={type: json_schema, schema: ...}"]
+    R2["2. Frontend 转 SamplingParams&lt;br/&gt;structured_outputs = StructuredOutputsParams(&lt;br/&gt;  backend='xgrammar', json=schema)"]
+    R3["3. Scheduler 收到请求&lt;br/&gt;StructuredOutputManager.grammar_init(req)&lt;br/&gt;· 第一次：创建 XgrammarBackend&lt;br/&gt;· 异步 compile_grammar（线程池）&lt;br/&gt;· status → WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR"]
+    R4["4. Grammar 编译完成&lt;br/&gt;status → WAITING → 可被 schedule"]
+    R5["5. Scheduler.schedule()&lt;br/&gt;选定结构化请求 → grammar_bitmask 写 bitmask"]
+    R6["6. Worker forward → logits"]
+    R7["7. Sampler.apply_logits_processors&lt;br/&gt;logits[~bitmask] = -inf"]
+    R8["8. 采样 token x&lt;br/&gt;accept_tokens([x]) 推进 grammar 状态"]
+    Done{{"is_terminated()?"}}
+    End["自动 stop"]
+
+    R1 --&gt; R2 --&gt; R3 --&gt; R4 --&gt; R5 --&gt; R6 --&gt; R7 --&gt; R8 --&gt; Done
+    Done -- YES --&gt; End
+    Done -- NO --&gt; R5
+
+    classDef frontend fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef engine   fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef worker   fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    classDef done     fill:#f7f8fa,stroke:#5b6573,color:#1a1f29;
+    class R1,R2 frontend;
+    class R3,R4,R5,R8 engine;
+    class R6,R7 worker;
+    class Done,End done;</pre>
+<hr />
+<h2 id="6-scheduler-sampler">6. 与 Scheduler / Sampler 的具体接缝</h2>
+<h3 id="ascheduler-grammar">接缝 A：Scheduler 等 grammar 编译完成</h3>
+<p><code>vllm/v1/core/sched/scheduler.py</code> 在 <code>_schedule_running</code> 之前会检查每个 request 的 grammar future 是否 done。没 done 的请求保持 WAITING，不进 batch。</p>
+<h3 id="bgrammar_bitmask-sampleroutput">接缝 B：grammar_bitmask 注入 SamplerOutput</h3>
+<p>SchedulerOutput 带 <code>grammar_bitmask: NDArray[int32]</code>。Worker.execute_model 传到 GPU。Sampler 在 <code>apply_logits_processors</code> 阶段用它 mask logits。</p>
+<h3 id="caccept_tokens">接缝 C：accept_tokens 推进状态机</h3>
+<p>ModelRunner 拿到采样结果后，对每个 structured request 调 <code>grammar.accept_tokens([sampled_id])</code>。这是<strong>严格串行</strong>（grammar 状态有顺序），所以这步在 CPU 上做，不入 GPU。</p>
+<hr />
+<h2 id="7">7. 性能优化技巧</h2>
+<h3 id="71-bitmask">7.1 bitmask 复用</h3>
+<p><code>_grammar_bitmask</code> 是个 reusable tensor，每步只刷需要的行。免去每步 alloc 大 tensor。</p>
+<h3 id="72-async-grammar">7.2 async grammar 编译</h3>
+<p>JSON Schema → DFA 可能要几十 ms。同步会卡 Scheduler。改 thread pool 异步，Scheduler 继续跑其他请求。</p>
+<h3 id="73-batch-fill_bitmask">7.3 大 batch 并行 fill_bitmask</h3>
+<p>单步 batch &gt; 128 时，把 fill_bitmask 分块多线程做（CPU-bound）。</p>
+<h3 id="74-bitmask">7.4 bitmask 编码紧凑</h3>
+<p>不存 <code>[vocab_size]</code> bool，存 <code>[ceil(vocab/32)]</code> int32 位图。vocab 128k 时占 16KB / 请求，可接受。</p>
+<hr />
+<h2 id="8-function-calling-tool-use">8. 与 Function Calling / Tool Use 的关系</h2>
+<p>OpenAI 的 <code>tools</code> API：</p>
+<ul>
+<li>用户传 function schema</li>
+<li>模型决定调用哪个 function + 输出 JSON 参数</li>
+<li>服务端解析 JSON 调实际工具</li>
+</ul>
+<p>vLLM 的实现路径（<code>vllm/entrypoints/openai/</code>）：</p>
+<ul>
+<li>frontend 把 tools schema 转成 JSON Schema</li>
+<li>设 <code>structured_outputs={"type": "json_schema", ...}</code></li>
+<li>用 <code>tool_choice</code> 控制是否强制调用</li>
+</ul>
+<p>结构化输出 + parser（<code>vllm/tool_parsers/</code>）是 function calling 的两条腿。</p>
+<hr />
+<h2 id="9">9. 与投机解码的交互</h2>
+<p>结构化输出 + spec decode 是个<strong>复杂组合</strong>：</p>
+<ul>
+<li>target 模型采样后必须 accept_tokens 推进 grammar</li>
+<li>spec 一次提议多个 token，需要 <code>validate_tokens</code> 批量验</li>
+<li>拒绝重采时要 <code>rollback</code> 回滚 grammar 状态</li>
+</ul>
+<p><code>RejectionSampler.forward</code> 接受 grammar 引用，按位决策。
+<strong>目前并非所有后端都完美支持 spec decode + structured output</strong>——上生产前要 benchmark。</p>
+<hr />
+<h2 id="10-reasoning-modelsdeepseek-r1-o1">10. Reasoning Models（DeepSeek-R1 / o1 风格）</h2>
+<p><code>structured_outputs_config.reasoning_parser</code> 处理 reasoning：</p>
+<ul>
+<li>模型先输出 <code>&lt;think&gt;...&lt;/think&gt;</code> 然后正式答案</li>
+<li>ReasoningParser 把 reasoning 段拆出来不参与 grammar 约束</li>
+<li>答案段恢复 grammar 约束</li>
+</ul>
+<p>代码：<code>vllm/reasoning/</code>，在 <code>StructuredOutputManager._get_reasoner</code>（line 99）里挂上。</p>
+<hr />
+<h2 id="11">11. 工程自检问答</h2>
+<p><strong>Q: structured output 为什么比 prompt 工程可靠？</strong>
+A: prompt 工程依赖模型自觉，温度高 / 长生成时易跑偏。结构化输出在 logits 层强制 mask，<strong>数学上保证</strong>只能产出合法 token，无法越界。</p>
+<p><strong>Q: bitmask 是怎么算的？</strong>
+A: 每个 grammar 维护一个状态机（DFA / PDA）。<code>fill_bitmask</code> 调用：当前状态下哪些 token 能让状态机合法 transition？把这些位置 1，其余位置 0。xgrammar 把 DFA 预编译，每步只查表。</p>
+<p><strong>Q: 一个 batch 里只有部分请求有结构化约束，怎么处理？</strong>
+A: SamplerOutput 接收 <code>[max_num_seqs, vocab/32]</code> 的 bitmask，没结构化约束的请求那一行全 1（任意合法）。同 batch 一次 apply。</p>
+<p><strong>Q: 异步 grammar 编译能给多少收益？</strong>
+A: 复杂 JSON Schema 编译 30-200ms。如果在 critical path 上，会让 TTFT 飙升。异步后请求只在 grammar 没好之前不进 batch，编译期间 Scheduler 服务其他请求 → TTFT 不受影响。</p>
+<p><strong>Q: xgrammar 的精度有问题吗？</strong>
+A: 标准 JSON Schema 全支持。但极端复杂的 lark grammar 偶有 corner case（如递归深度限制）。生产前 fuzzing 测一遍。</p>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>StructuredOutputManager 是 engine 级单例，懒加载 backend，并把 grammar 编译异步化避免 block scheduler。</li>
+<li>每个请求一份 <code>StructuredOutputGrammar</code> 状态机，每步靠 <code>fill_bitmask</code> 写 <code>[max_num_seqs, ceil(vocab/32)]</code> 位图。</li>
+<li>Sampler 在 logits 阶段一次性把 bitmask 应用到整 batch，无结构化约束的请求位图全 1。</li>
+<li>与 spec decode 协同需要 <code>validate_tokens</code> / <code>rollback</code>，并非所有后端完全等价。</li>
+<li>Reasoning models 用 ReasoningParser 把 <code>&lt;think&gt;</code> 段与正式答案段分离，只在答案段约束。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<ol>
+<li>一个 grammar 编译要 100ms，如果不异步会怎样？异步后请求处于哪个 status？</li>
+<li>bitmask 为什么用 int32 位图而不是 bool tensor？vocab 128k 时单请求占多少字节？</li>
+<li>spec decode 拒绝时，grammar 状态机需要怎么处理才能保持一致？</li>
+<li>function calling 的 <code>tools</code> 参数最终在 vLLM 内部转成什么？由谁解析最终 JSON？</li>
+</ol>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>下一节：<a href="./03-multimodal.html"><code>03-multimodal.md</code></a>（多模态输入与 token 化）</li>
+<li>想看源码：<code>vllm/v1/structured_output/</code>、<code>vllm/tool_parsers/</code>、<code>vllm/reasoning/</code></li>
+<li>想动手：<a href="../07-hands-on/03-mini-experiments.html"><code>07-hands-on/03-mini-experiments.md</code></a> 拿一份 JSON Schema 对比 xgrammar vs outlines 的耗时</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li><code>vllm/v1/structured_output/__init__.py:35,114,203,301</code></li>
+<li><code>vllm/v1/structured_output/backend_types.py:31,99</code></li>
+<li><code>vllm/v1/structured_output/backend_xgrammar.py</code></li>
+<li><code>vllm/v1/structured_output/backend_guidance.py</code></li>
+<li><code>vllm/v1/structured_output/request.py</code></li>
+<li><code>vllm/sampling_params.py:41</code>（StructuredOutputsParams）</li>
+<li><code>vllm/v1/sample/sampler.py:360</code>（apply_logits_processors 入口）</li>
+<li><code>vllm/tool_parsers/</code>、<code>vllm/reasoning/</code></li>
+</ul>
+<hr />
+<h2 id="see-also">See also</h2>
+<ul>
+<li><code>09-advanced-features/01-sampling-and-logits.md</code> —— bitmask 怎么改 logits</li>
+<li><code>06-interview/02-system-design.md</code> —— agent 框架设计里的 schema 强制</li>
+<li><code>03-code-walkthrough/02-scheduler.md</code> —— grammar 等待状态如何融入 schedule</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../09-advanced-features/01-sampling-and-logits.html"><span class="label">上一篇</span><span class="title">01. Sampling 全栈：从 logits 到 token</span></a>
+<a class="next" href="../09-advanced-features/03-multimodal.html"><span class="label">下一篇</span><span class="title">03. Multimodal：图像 / 视频 / 音频 一路打通</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

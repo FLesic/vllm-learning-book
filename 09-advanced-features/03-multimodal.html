@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>03. Multimodal：图像 / 视频 / 音频 一路打通 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li class="current"><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part IX</span> · 应用特性</div>
+      <div class="reading-time">预计阅读 6 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="03-multimodal">03. Multimodal：图像 / 视频 / 音频 一路打通</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 想把视觉/语音/视频模型上线的应用开发者；想理解 vLLM 怎么把非文本模态接进 token 序列的引擎贡献者。</p>
+<p><strong>前置阅读：</strong> <a href="../03-code-walkthrough/04-model-runner.html"><code>04-model-runner.md</code></a>、<a href="../02-core-concepts/04-prefix-caching.html"><code>04-prefix-caching.md</code></a></p>
+<p><strong>耗时：</strong> 约 25 分钟</p>
+<p><strong>学完能：</strong>
+1. 画出 image → placeholder token → encoder embed → LLM 的完整数据流
+2. 解释 EncoderCacheManager 的 LRU + ref_cnt 设计与 KV BlockPool 的相似/不同
+3. 描述 mm_hash 如何融入 prefix caching 的 block hash
+4. 说出视频与音频在调度、内存、encoder budget 上的差异</p>
+</blockquote>
+<p>Qwen2-VL / Llama-3.2-Vision / Phi-3.5-Vision / Whisper 等模型在 vLLM 里能跑，靠的是一整套<strong>多模态输入处理 + 编码器缓存 + token 占位符替换</strong>系统。涉及代码：<code>vllm/multimodal/</code>、<code>vllm/v1/core/encoder_cache_manager.py</code>、<code>vllm/model_executor/models/qwen2_vl.py</code> 等。</p>
+<hr />
+<h2 id="1-token">1. 数据流：图片如何变成 token</h2>
+<pre class="mermaid">flowchart TD
+    U["用户输入&lt;br/&gt;prompt = 'Describe &amp;lt;|image|&amp;gt; in detail'&lt;br/&gt;multi_modal_data = {image: PIL.Image / bytes / URL}"]
+    P["1. Processor (每模型一份)&lt;br/&gt;&lt;sub&gt;vllm/multimodal/processing/&lt;/sub&gt;&lt;br/&gt;· 调用 HF Processor 把 image → pixel_values&lt;br/&gt;· 决定 image 占多少 token（Qwen2-VL: grid_thw → N）&lt;br/&gt;· 把 &amp;lt;|image|&amp;gt; 替换为 N 个 placeholder token id"]
+    Q["2. 进 Scheduler 队列&lt;br/&gt;token_ids = [...&amp;lt;IMG&amp;gt;&amp;lt;IMG&amp;gt;...&amp;lt;IMG&amp;gt;...]&lt;br/&gt;mm_features = [MultiModalFeatureSpec(...mm_hash)]"]
+    E["3. Vision Encoder forward&lt;br/&gt;&lt;sub&gt;ModelRunner._execute_mm_encoder&lt;/sub&gt;&lt;br/&gt;&lt;sub&gt;gpu_model_runner.py:2813&lt;/sub&gt;&lt;br/&gt;pixel_values → ViT/SigLIP&lt;br/&gt;→ image_embeds [N, hidden]&lt;br/&gt;缓存到 EncoderCacheManager (mm_hash)"]
+    G["4. _gather_mm_embeddings&lt;br/&gt;&lt;sub&gt;gpu_model_runner.py:3024&lt;/sub&gt;&lt;br/&gt;把 placeholder 位置替换为 image_embeds"]
+    F["5. LLM forward(inputs_embeds=...)&lt;br/&gt;不传 input_ids，直接吃 embed"]
+
+    U --&gt; P --&gt; Q --&gt; E --&gt; G --&gt; F
+
+    classDef input  fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef proc   fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef llm    fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class U input;
+    class P,Q,E,G proc;
+    class F llm;</pre>
+<hr />
+<h2 id="2-multimodal">2. multimodal 目录结构</h2>
+<div class="codehilite"><pre><span></span><code>vllm/multimodal/
+├── inputs.py        ← MultiModalKwargs / FieldElem / PlaceholderRange (1015 行)
+├── image.py         ← image 输入解析（PIL/np/bytes/URL）
+├── video.py         ← video 帧抽样 / 时序重采样（1055 行）
+├── audio.py         ← waveform 加载与切片
+├── hasher.py        ← mm 内容哈希（影响 prefix caching）
+├── cache.py         ← 输入侧 cache（vs encoder 输出 cache）
+├── processing/      ← 每模型一份 Processor
+├── registry.py      ← MultiModalRegistry：模型 ↔ processor 绑定
+└── parse.py         ← OpenAI message → mm_data 解析
+</code></pre></div>
+
+<hr />
+<h2 id="3-placeholderrange">3. PlaceholderRange：核心数据结构</h2>
+<p><code>vllm/multimodal/inputs.py:119</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PlaceholderRange</span><span class="p">:</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span>          <span class="c1"># 在 token 序列里的起始位置</span>
+    <span class="n">length</span><span class="p">:</span> <span class="nb">int</span>          <span class="c1"># 占多少 token</span>
+    <span class="n">is_embed</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># 哪些位置真的填 embed（部分模型有 padding）</span>
+</code></pre></div>
+
+<p>例：Qwen2-VL 一张 224×224 图片占 16 个 token，prompt 长 100 token 时图片在位置 10-25：</p>
+<div class="codehilite"><pre><span></span><code>PlaceholderRange(offset=10, length=16, is_embed=None)
+</code></pre></div>
+
+<p>这个 range 决定了：</p>
+<ul>
+<li><code>_gather_mm_embeddings</code> 把 image_embeds 放到哪</li>
+<li>prefix caching 的 hash 怎么算（图片 hash 替代 placeholder token）</li>
+</ul>
+<hr />
+<h2 id="4-encodercachemanager">4. EncoderCacheManager：编码器输出缓存</h2>
+<p><code>vllm/v1/core/encoder_cache_manager.py:17</code> 一个 EngineCore 一份。结构：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">EncoderCacheManager</span><span class="p">:</span>
+    <span class="n">cache_size</span><span class="p">:</span> <span class="nb">int</span>             <span class="c1"># 容量（按 encoder embed token 数算）</span>
+    <span class="n">num_free_slots</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="c1"># mm_hash → 引用它的 request_id 集合</span>
+    <span class="n">cached</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># 引用计数归零的可释放项：mm_hash → 该项占的 embed 数</span>
+    <span class="n">freeable</span><span class="p">:</span> <span class="n">OrderedDict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># 上一轮被实际驱逐的 hash（通知给 KV manager 让 prefix cache 也跟着清）</span>
+    <span class="n">freed</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</code></pre></div>
+
+<p>关键方法：</p>
+<ul>
+<li><code>check_and_update_cache(req, input_id)</code>：命中则 ref_cnt++</li>
+<li><code>can_allocate(req, input_id)</code>：还有空间放新的吗</li>
+<li><code>allocate(req, input_id)</code>：占用 slot</li>
+<li><code>free(req)</code>：请求结束，所有 mm input 引用 -1</li>
+<li><code>get_freed_mm_hashes()</code>：返回 + 清空 freed 列表</li>
+</ul>
+<p><strong>核心思路与 KV BlockPool 一样</strong>：LRU + ref_cnt，只是单位从 KV block 变成 mm encoder embed 数。</p>
+<hr />
+<h2 id="5-encoder-budget-vision">5. Encoder Budget：单步算多少 vision</h2>
+<p>vision encoder forward 也耗 GPU 算力。Scheduler 给它独立 budget：</p>
+<div class="codehilite"><pre><span></span><code>vllm/multimodal/encoder_budget.py
+  ↓
+SchedulerConfig.max_num_encoder_input_tokens   # 单 step 上限
+</code></pre></div>
+
+<p>每步 <code>_schedule_waiting</code> 在加入新请求前检查 encoder budget。超了就 defer。</p>
+<p><strong>为什么需要独立 budget？</strong> 一张大图可能产生几百 token 的 embed，几张图就占满 prefill 算力。隔离后 prefill 与 vision encoder 各自有上限，调度可预测。</p>
+<hr />
+<h2 id="6-mm_hash-prefix-caching">6. mm_hash 与 Prefix Caching 的交互</h2>
+<p>参见 <code>02-core-concepts/04-prefix-caching.md</code> 第 4.3 节。要点：</p>
+<div class="codehilite"><pre><span></span><code>block_hash = hash(prev_block_hash, tuple(token_ids), extra_keys)
+                                                     ↑
+                                              extra_keys 包含：
+                                                - 对应位置上的 mm_hash（如果有图）
+                                                - LoRA adapter id
+                                                - cache_salt
+</code></pre></div>
+
+<p>这样<strong>同一张图 hash 一致</strong> → 跨请求 cache 命中。但<strong>不同图 placeholder 相同</strong> → hash 不同，正确隔离。</p>
+<p>mm_hash 在 <code>vllm/multimodal/hasher.py</code> 里计算：图片用 <code>(width, height, pixel sample)</code>、视频用 <code>(frames_hash, fps)</code>，audio 用 <code>(sample_rate, waveform_hash)</code>。</p>
+<hr />
+<h2 id="7-qwen2-vl">7. 一个具体模型例子：Qwen2-VL</h2>
+<p><code>vllm/model_executor/models/qwen2_vl.py</code>（1829 行），简化看 forward：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Qwen2VLForConditionalGeneration</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">visual</span> <span class="o">=</span> <span class="n">Qwen2VisionTransformer</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>   <span class="c1"># ViT</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">Qwen2VLModel</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>              <span class="c1"># LLM</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lm_head</span> <span class="o">=</span> <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_multimodal_embeddings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pixel_values</span><span class="p">,</span> <span class="n">grid_thw</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+        <span class="c1"># 1. ViT forward → image_embeds [N, hidden]</span>
+        <span class="c1"># 2. merge: rearrange via grid_thw（spatial / temporal merging）</span>
+        <span class="k">return</span> <span class="n">image_embeds</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_input_embeddings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_ids</span><span class="p">,</span> <span class="n">multimodal_embeddings</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># 普通 token: embed_tokens(input_ids)</span>
+        <span class="c1"># placeholder 位置：替换为 multimodal_embeddings</span>
+        <span class="n">inputs_embeds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">embed_tokens</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">multimodal_embeddings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs_embeds</span> <span class="o">=</span> <span class="n">scatter_mm_embeds_into</span><span class="p">(</span>
+                <span class="n">inputs_embeds</span><span class="p">,</span> <span class="n">multimodal_embeddings</span><span class="p">,</span> <span class="n">placeholder_positions</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">inputs_embeds</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">positions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">inputs_embeds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">intermediate_tensors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+        <span class="c1"># vLLM 调用时通常已经传 inputs_embeds（mm 模型）</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">inputs_embeds</span><span class="o">=</span><span class="n">inputs_embeds</span><span class="p">,</span> <span class="n">positions</span><span class="o">=</span><span class="n">positions</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<p>ModelRunner 集成（<code>vllm/v1/worker/gpu_model_runner.py</code>）：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">execute_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scheduler_output</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="c1"># Step C: 多模态 encoder</span>
+    <span class="n">multimodal_embeds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_execute_mm_encoder</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+    <span class="c1">#         └─ 内部检 encoder_cache，未命中调 model.get_multimodal_embeddings</span>
+
+    <span class="c1"># Step D: 把 embed 替换进 input</span>
+    <span class="n">input_embeds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gather_mm_embeddings</span><span class="p">(</span><span class="n">multimodal_embeds</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+
+    <span class="c1"># Step E: 主 LLM forward</span>
+    <span class="n">hidden_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span>
+        <span class="n">input_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">inputs_embeds</span><span class="o">=</span><span class="n">input_embeds</span><span class="p">,</span>
+        <span class="n">positions</span><span class="o">=</span><span class="n">positions</span><span class="p">,</span>
+        <span class="o">...</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="8">8. 视频与音频差异</h2>
+<h3 id="video">Video</h3>
+<ul>
+<li>抽帧（按 fps 或固定步长）</li>
+<li>每帧过 vision encoder</li>
+<li>跨帧融合：temporal pooling / merge（Qwen2-VL 用 spatial-temporal merge）</li>
+<li>mm_hash 含帧序列 hash</li>
+</ul>
+<h3 id="audio">Audio</h3>
+<ul>
+<li>waveform → mel-spectrogram → audio encoder（Whisper 用 CNN + Transformer）</li>
+<li>输出 audio embedding 序列</li>
+<li>与 image 类似插入到 LLM input</li>
+</ul>
+<p>视频是<strong>算量最大的模态</strong>——一个 1 分钟视频 30 fps → 1800 帧。生产配置常常限制帧数或降采样。</p>
+<hr />
+<h2 id="9">9. 工程要点</h2>
+<h3 id="91-pixel-preprocessing">9.1 Pixel preprocessing 在哪做？</h3>
+<p>HF Processor 是 CPU bound（PIL + numpy）。
+vLLM 把 preprocessing 放在<strong>Frontend 进程</strong>（API server），不阻塞 EngineCore。</p>
+<h3 id="92-input-batch">9.2 多模态请求的 input batch</h3>
+<p>batch 内不同请求 mm 数量不同。<code>mm_features</code> 是 list[list]，per-request 长度不一。
+ModelRunner 的 <code>_extract_mm_kwargs</code>（line 1583）把它们打平 + 标记哪个 mm 属于哪个请求。</p>
+<h3 id="93">9.3 内存开销</h3>
+<p>图片 embed 比 KV cache 占的还多。例：Qwen2-VL 一张 1024×1024 = 1024 token × 4096 dim × BF16 = 8MB。100 张 = 800MB。
+所以 encoder_cache 容量要规划（默认按 <code>--mm-encoder-cache-size</code>）。</p>
+<h3 id="94-pod">9.4 跨 Pod 复用？</h3>
+<p>encoder cache 默认 per-Pod。要跨 Pod 复用：通过 KV connector 把 mm_hash → embed 也上传到 L2/L3。不是常规配置。</p>
+<hr />
+<h2 id="10">10. 工程自检问答</h2>
+<p><strong>Q: vLLM 怎么把图片"翻译"成 LLM 输入？</strong>
+A: 三步：①Processor 把字符 placeholder 换成 N 个特殊 token id；②ViT 算 image_embeds；③在 input_embeds 里把 N 个 placeholder 位置替换为 image_embeds。LLM forward 吃 inputs_embeds（不传 input_ids）。</p>
+<p><strong>Q: 同一张图给两个请求，怎么不重复算？</strong>
+A: EncoderCacheManager 用 mm_hash 索引 encoder 输出。命中则 ref_cnt++，跳过 ViT forward。跟 prefix caching 在 KV 上的复用是同一套思路。</p>
+<p><strong>Q: 长视频（10000 帧）怎么部署？</strong>
+A: ①降帧（每 5-10 帧采 1）；②分段 prefill（chunked prefill 配合）；③encoder cache 必须大；④可能需要 dedicated decode pool（KV 占用大）。生产常把视频任务隔离到单独 Pod 池。</p>
+<p><strong>Q: 多模态 + prefix caching 有坑吗？</strong>
+A: 有。mm_hash 必须稳定（同一图每次 hash 一致），否则 cache 命中失败。常见 bug：图像 preprocessing 引入随机性（resize / normalize 浮点误差）→ hash 不一致 → cache miss。hasher.py 会下采样 + 量化避免。</p>
+<p><strong>Q: vision encoder 与 LLM 怎么协同 TP？</strong>
+A: ViT 通常<strong>不 TP</strong>（小），所有 TP rank 各自跑完整 ViT；image_embeds 通过 AllGather 同步。LLM 部分按常规 TP 切。少数大 ViT（如 InternVL-6B）也支持 TP。</p>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>Multimodal 输入用 <code>&lt;|image|&gt;</code> 等占位符 token 占位，先经 Processor 算出占多少 token，再由 ViT/SigLIP 算 embed，最后插回 input_embeds。</li>
+<li>EncoderCacheManager 用 LRU + ref_cnt 缓存 encoder 输出，单位是 embed token 数，思想与 KV BlockPool 一致。</li>
+<li>Encoder 有独立 budget，避免大图/视频抢走 prefill 算力；这是调度可预测的关键。</li>
+<li>mm_hash 进入 block_hash 的 extra_keys，使得"同图复用、异图隔离"在 prefix caching 层正确表达。</li>
+<li>视频比图像贵几个数量级（帧数线性放大），生产中常隔离到专门 Pod 池。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<ol>
+<li>一张图在 EncoderCacheManager 里被多个请求共用时，引用计数何时归零？归零后多久才真正释放？</li>
+<li>为什么 ViT 通常不做 TP，而 LLM 部分按常规 TP 切？要让它们配合需要哪一步同步？</li>
+<li>mm_hash 一旦不稳定会导致什么现象？hasher.py 用什么手段稳住浮点 preprocessing？</li>
+<li>你要支持 1 分钟 30fps 的视频问答，要在 SchedulerConfig 哪些字段上做手脚？</li>
+</ol>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>下一节：<a href="./04-lora-serving.html"><code>04-lora-serving.md</code></a>（多租户 LoRA 的加载与路由）</li>
+<li>想看源码：<code>vllm/multimodal/</code>、<code>vllm/v1/core/encoder_cache_manager.py</code>、<code>vllm/model_executor/models/qwen2_vl.py</code></li>
+<li>想从生产视角理解：<a href="../08-production-deployment/01-deployment-architectures.html"><code>08-production-deployment/01-deployment-architectures.md</code></a>（多模态 Pod 池隔离）</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li><code>vllm/multimodal/inputs.py:119</code>（PlaceholderRange）、<code>:854,882</code>（MultiModalKwargs）</li>
+<li><code>vllm/multimodal/processing/</code>（每模型一份）</li>
+<li><code>vllm/multimodal/hasher.py</code>、<code>cache.py</code>、<code>encoder_budget.py</code></li>
+<li><code>vllm/v1/core/encoder_cache_manager.py:17</code></li>
+<li><code>vllm/v1/worker/gpu_model_runner.py:2813,3024</code>（_execute_mm_encoder / _gather_mm_embeddings）</li>
+<li><code>vllm/model_executor/models/qwen2_vl.py</code>、<code>llava.py</code>、<code>phi3v.py</code>、<code>internvl.py</code></li>
+</ul>
+<hr />
+<h2 id="see-also">See also</h2>
+<ul>
+<li><code>02-core-concepts/04-prefix-caching.md</code> —— mm_hash 进 block hash</li>
+<li><code>03-code-walkthrough/04-model-runner.md</code> —— Stage C 多模态 embedding</li>
+<li><code>06-interview/02-system-design.md</code> —— RAG / multimodal 系统设计</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../09-advanced-features/02-structured-output.html"><span class="label">上一篇</span><span class="title">02. Structured Output：JSON / Regex / Grammar 约束生成</span></a>
+<a class="next" href="../09-advanced-features/04-lora-serving.html"><span class="label">下一篇</span><span class="title">04. LoRA Serving：一个 base model 服务多个微调版本</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

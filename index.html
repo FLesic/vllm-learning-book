@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vLLM 学习手册 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      
+      
+      <article class="markdown-body" id="article"><h1 id="vllm">vLLM 学习手册</h1>
+<p><a href="https://github.com/jwzheng96/vllm-learning-book/actions/workflows/pages.yml"><img alt="Pages" src="https://github.com/jwzheng96/vllm-learning-book/actions/workflows/pages.yml/badge.svg" /></a>
+<a href="https://jwzheng96.github.io/vllm-learning-book/"><img alt="Site" src="https://img.shields.io/badge/site-jwzheng96.github.io%2Fvllm--learning--book-8b1538" /></a>
+<a href="https://github.com/vllm-project/vllm/tree/27b85d2084c48f9b12f8cfd6638a56fe9b257635"><img alt="vLLM" src="https://img.shields.io/badge/vllm-27b85d2_(2026--05--15)-1a4d80" /></a></p>
+<blockquote>
+<p>一份写给大模型推理工程入门者的源码教程。
+<strong>49 章 · 21K+ 行</strong>，从 PagedAttention 论文到 K8s 生产部署，覆盖整条链路。
+每章都对照 vLLM 源码（<code>file_path:line_number</code>），可以"读笔记 ↔ 跳源码"无缝切换。</p>
+<p>📖 在线阅读：<strong><a href="https://jwzheng96.github.io/vllm-learning-book/">jwzheng96.github.io/vllm-learning-book</a></strong></p>
+</blockquote>
+<hr />
+<h2 id="_1">这份手册解决什么问题</h2>
+<p>如果你正在做下面这些事，这是为你写的：</p>
+<ul>
+<li><strong>系统补课</strong>：想把 vLLM 的核心机制啃透，不再只记"PagedAttention 解决了什么"这种结论。</li>
+<li><strong>业务接入</strong>：要上线 LLM 推理服务，要选 v0/v1、调度策略、量化方案、部署架构。</li>
+<li><strong>性能优化</strong>：TTFT/TPOT 不达标，需要从架构层定位到内核层逐级排查。</li>
+<li><strong>底层贡献</strong>：想给 vLLM 提 PR，先得知道 scheduler / kv manager / attention backend 怎么咬合。</li>
+</ul>
+<p>它<strong>不</strong>适合：完全没接触过 LLM 推理 → 先看 <a href="01-overview/00-prerequisites.html"><code>01-overview/00-prerequisites.md</code></a> 把前置概念铺平；纯 prompt engineer 不碰服务侧 → 这本太工程。</p>
+<hr />
+<h2 id="_2">怎么用这份资料</h2>
+<p><strong>两种打开方式：</strong></p>
+<table class="three-line">
+<thead>
+<tr>
+<th>方式</th>
+<th>入口</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Markdown 直接读</strong></td>
+<td>本 README.md → 按章节文件名跳转</td>
+<td>IDE 内阅读、对照源码、想在 GitHub 上读</td>
+</tr>
+<tr>
+<td><strong>HTML 在线版</strong></td>
+<td><code>python3 build_html.py</code> 后开 <code>vllm-learning-html/index.html</code></td>
+<td>想要侧栏 + 全文搜索 + Mermaid 渲染 + 暗色主题 + 阅读时间提示</td>
+</tr>
+</tbody>
+</table>
+<p>所有跨章链接、内嵌 Mermaid、代码块都在两种模式下都能用。HTML 版额外有 lunr.js 全文搜索和阅读时间估算。</p>
+<p><strong>每章统一的结构：</strong></p>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> ...
+<strong>前置阅读：</strong> ...
+<strong>耗时：</strong> N 分钟
+<strong>学完能：</strong> ...</p>
+</blockquote>
+<p>正文（含 mermaid / 表格 / 代码引用）</p>
+<div class="codehilite"><pre><span></span><code>## 小结
+## 自检（3-5 题，自答）
+## 下一步（跳转推荐）
+</code></pre></div>
+
+<p>按这个节奏走，刷完整本约 25-35 小时（不含动手实验）。</p>
+<hr />
+<h2 id="_3">学习路径</h2>
+<pre class="mermaid">flowchart LR
+    A[Week 1&lt;br/&gt;建立直觉&lt;br/&gt;~6h] --&gt; B[Week 2&lt;br/&gt;吃透核心算法&lt;br/&gt;~8h]
+    B --&gt; C[Week 3&lt;br/&gt;啃源码&lt;br/&gt;~10h]
+    C --&gt; D[Week 4&lt;br/&gt;优化 / 分布式 / 生产&lt;br/&gt;~12h]
+
+    A -.-&gt; A1[01-overview]
+    B -.-&gt; B1[02-core-concepts]
+    C -.-&gt; C1[03-code-walkthrough]
+    D -.-&gt; D1[04-optimizations]
+    D -.-&gt; D2[05-distributed]
+    D -.-&gt; D3[08-production-deployment]
+    D -.-&gt; D4[09-advanced-features]
+
+    classDef phase fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef topic fill:#f7f8fa,stroke:#5b6573,color:#1a1f29;
+    class A,B,C,D phase;
+    class A1,B1,C1,D1,D2,D3,D4 topic;</pre>
+<p>按章节顺序读最系统。时间紧时用"最短路径"：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>投入时间</th>
+<th>推荐路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>零基础</td>
+<td>先读 <a href="01-overview/00-prerequisites.html"><code>01-overview/00-prerequisites.md</code></a>（前置概念）再走任何一条路径</td>
+</tr>
+<tr>
+<td>1 天（~5h）</td>
+<td><a href="01-overview/01-what-is-vllm.html"><code>01-what-is-vllm</code></a> → <a href="01-overview/02-architecture.html"><code>02-architecture</code></a> → <a href="02-core-concepts/01-paged-attention.html"><code>01-paged-attention</code></a> → <a href="06-interview/01-common-questions.html"><code>工程问答速查</code></a></td>
+</tr>
+<tr>
+<td>1 周（~15h）</td>
+<td>精读 <code>01-overview/</code> + <code>02-core-concepts/</code>，跑通 <code>vllm</code> repo 的 <code>examples/offline_inference/basic.py</code></td>
+</tr>
+<tr>
+<td>3-4 周（~35h）</td>
+<td>顺序读 01 → 09，每章配合源码对照（每章都标 <code>file_path:line_number</code>）</td>
+</tr>
+<tr>
+<td>核心机制快读（~8h）</td>
+<td><a href="01-overview/01-what-is-vllm.html"><code>01-what-is-vllm</code></a> → <a href="02-core-concepts/"><code>02-core-concepts/</code></a> 全部 → <a href="06-interview/"><code>06-interview/</code></a> 两篇工程问答</td>
+</tr>
+<tr>
+<td>生产部署快读（~10h）</td>
+<td><a href="01-overview/02-architecture.html"><code>01-overview/02-architecture</code></a> → <a href="08-production-deployment/"><code>08-production-deployment/</code></a> 全部</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_4">章节索引（带钩子）</h2>
+<p>每章后面一句话告诉你为什么要读。</p>
+<h3 id="1-01-overview-6">1. 总览 · <code>01-overview/</code> — 6 章</h3>
+<ul>
+<li><a href="01-overview/00-prerequisites.html"><code>00-prerequisites.md</code></a> — 🆕 token / KV cache / TTFT·TPOT / TP·PP·DP 一次铺平，零基础起点。</li>
+<li><a href="01-overview/01-what-is-vllm.html"><code>01-what-is-vllm.md</code></a> — vLLM 是什么，为什么快，靠哪三大武器。</li>
+<li><a href="01-overview/02-architecture.html"><code>02-architecture.md</code></a> — 三层进程、四个核心数据结构、一步推理的完整数据流。</li>
+<li><a href="01-overview/03-v0-vs-v1.html"><code>03-v0-vs-v1.md</code></a> — V1 重构改了什么，为什么改。</li>
+<li><a href="01-overview/04-project-structure.html"><code>04-project-structure.md</code></a> — 1700+ 文件按模块分类导航（这章很长，按需查阅）。</li>
+<li><a href="01-overview/05-process-and-ipc-internals.html"><code>05-process-and-ipc-internals.md</code></a> — fork vs spawn / ZMQ ROUTER-DEALER / 共享内存 MessageQueue 零拷贝。</li>
+</ul>
+<h3 id="2-02-core-concepts-5">2. 核心概念 · <code>02-core-concepts/</code> — 5 章</h3>
+<ul>
+<li><a href="02-core-concepts/01-paged-attention.html"><code>01-paged-attention.md</code></a> — 用 OS 虚拟内存类比讲 paged KV cache + block table。</li>
+<li><a href="02-core-concepts/02-continuous-batching.html"><code>02-continuous-batching.md</code></a> — 为什么 vLLM 不用 static batching，迭代级调度的两个前提。</li>
+<li><a href="02-core-concepts/03-kv-cache-management.html"><code>03-kv-cache-management.md</code></a> — Block Pool / 引用计数 / preempt vs swap 策略。</li>
+<li><a href="02-core-concepts/04-prefix-caching.html"><code>04-prefix-caching.md</code></a> — Merkle 链式 hash + extra_keys，多卡 / LoRA / 多模态怎么算。</li>
+<li><a href="02-core-concepts/05-chunked-prefill.html"><code>05-chunked-prefill.md</code></a> — 长 prompt 怎么切才不卡 decode，<code>max-num-batched-tokens</code> 怎么调。</li>
+</ul>
+<h3 id="3-03-code-walkthrough-8">3. 源码走读 · <code>03-code-walkthrough/</code> — 8 章</h3>
+<ul>
+<li><a href="03-code-walkthrough/01-entry-points.html"><code>01-entry-points.md</code></a> — <code>LLM</code> / <code>AsyncLLM</code> / <code>EngineCore</code> 的调用链。</li>
+<li><a href="03-code-walkthrough/02-scheduler.html"><code>02-scheduler.md</code></a> — <code>Scheduler.schedule()</code> 2300+ 行完整走读，token budget + preemption。</li>
+<li><a href="03-code-walkthrough/02b-scheduling-policies.html"><code>02b-scheduling-policies.md</code></a> — FCFS vs PRIORITY、优先级反演、抢占代价量化。</li>
+<li><a href="03-code-walkthrough/03-kv-cache-manager.html"><code>03-kv-cache-manager.md</code></a> — <code>allocate</code> / <code>free</code> / <code>hash</code> 的代码级细节。</li>
+<li><a href="03-code-walkthrough/04-model-runner.html"><code>04-model-runner.md</code></a> — <code>execute_model</code>：输入拼装 / forward / sampler。</li>
+<li><a href="03-code-walkthrough/05-attention-backends.html"><code>05-attention-backends.md</code></a> — FlashAttn / FlashInfer / Triton / MLA 怎么选。</li>
+<li><a href="03-code-walkthrough/06-cuda-kernels.html"><code>06-cuda-kernels.md</code></a> — PagedAttention v1/v2、RoPE、RMSNorm CUDA 实现。</li>
+<li><a href="03-code-walkthrough/07-model-architectures.html"><code>07-model-architectures.md</code></a> — MLA / Mamba / MoE / GQA 在源码层的差异。</li>
+</ul>
+<h3 id="4-04-optimizations-5">4. 优化 · <code>04-optimizations/</code> — 5 章</h3>
+<ul>
+<li><a href="04-optimizations/01-quantization.html"><code>01-quantization.md</code></a> — FP8 / INT4 / AWQ / GPTQ / Marlin 的选型矩阵。</li>
+<li><a href="04-optimizations/02-speculative-decoding.html"><code>02-speculative-decoding.md</code></a> — n-gram / EAGLE / Medusa / MTP 的取舍。</li>
+<li><a href="04-optimizations/03-cudagraph-and-compile.html"><code>03-cudagraph-and-compile.md</code></a> — CUDA Graph + torch.compile 何时开 / 何时关 / 失败降级路径。</li>
+<li><a href="04-optimizations/04-compilation-internals.html"><code>04-compilation-internals.md</code></a> — CompilerManager / VllmBackend / 自定义 pass 深度。</li>
+<li><a href="04-optimizations/05-roofline-and-arithmetic-intensity.html"><code>05-roofline-and-arithmetic-intensity.md</code></a> — 🆕 存算比定量推导：prefill 为何 compute-bound、decode 为何 memory-bound，Llama-70B 算一遍，batching 摊薄权重却摊不薄 KV。</li>
+</ul>
+<h3 id="5-05-distributed-5">5. 分布式 · <code>05-distributed/</code> — 5 章</h3>
+<ul>
+<li><a href="05-distributed/01-tp-pp-ep.html"><code>01-tp-pp-ep.md</code></a> — TP 切法 / PP 流水气泡 / EP expert 负载均衡。</li>
+<li><a href="05-distributed/02-disaggregated.html"><code>02-disaggregated.md</code></a> — Prefill/Decode 分离的数据流 + NIXL RDMA + 决策表。</li>
+<li><a href="05-distributed/03-expert-parallel-deep-dive.html"><code>03-expert-parallel-deep-dive.md</code></a> — MoE AllToAll 6 个后端、EPLB、宽 EP 部署模式。</li>
+<li><a href="05-distributed/04-context-parallel.html"><code>04-context-parallel.md</code></a> — PCP / DCP 双维度长上下文切分；MLA 模型 <code>a2a</code> backend 省 NCCL。</li>
+<li><a href="05-distributed/05-large-scale-cluster-inference.html"><code>05-large-scale-cluster-inference.md</code></a> — 🆕 千卡/万卡实战：通信墙/故障墙/长尾墙、EP 同步长尾、AllToAll 撞网络、blast radius、6 类规模化故障 runbook。</li>
+</ul>
+<h3 id="6-06-interview-2">6. 工程问答 · <code>06-interview/</code> — 2 章</h3>
+<ul>
+<li><a href="06-interview/01-common-questions.html"><code>01-common-questions.md</code></a> — 30 个核心问题，把概念、源码入口和工程取舍串起来。</li>
+<li><a href="06-interview/02-system-design.html"><code>02-system-design.md</code></a> — "设计一个推理服务"的容量估算、架构拆分与取舍推演。</li>
+</ul>
+<h3 id="7-07-hands-on-4">7. 实操 · <code>07-hands-on/</code> — 4 章</h3>
+<ul>
+<li><a href="07-hands-on/01-setup.html"><code>01-setup.md</code></a> — uv 环境 / 预编译 vs 源码 / GPU 检查。</li>
+<li><a href="07-hands-on/02-trace-a-request.html"><code>02-trace-a-request.md</code></a> — debugger 跟一个请求从 HTTP 到 token。</li>
+<li><a href="07-hands-on/03-mini-experiments.html"><code>03-mini-experiments.md</code></a> — 5 个动手实验（block_size / prefix hit / batching / 量化等）。</li>
+<li><a href="07-hands-on/04-profiling-and-debugging.html"><code>04-profiling-and-debugging.md</code></a> — torch.profiler / NVTX / py-spy / 显存泄漏。</li>
+</ul>
+<h3 id="8-08-production-deployment-10">8. 生产部署 · <code>08-production-deployment/</code> — 10 章</h3>
+<ul>
+<li><a href="08-production-deployment/01-deployment-architectures.html"><code>01-deployment-architectures.md</code></a> — vLLM Production Stack / llm-d / AIBrix 三套参考栈对比。</li>
+<li><a href="08-production-deployment/02-smart-routing-and-load-balancing.html"><code>02-smart-routing-and-load-balancing.md</code></a> — prefix-cache aware / session sticky / 负载打分。</li>
+<li><a href="08-production-deployment/03-gateway-and-service-mesh.html"><code>03-gateway-and-service-mesh.md</code></a> — Istio + Gateway API Inference Extension + ExtProc。</li>
+<li><a href="08-production-deployment/04-autoscaling-and-capacity.html"><code>04-autoscaling-and-capacity.md</code></a> — KEDA / 容量公式 / 冷启动 / 优雅 drain。</li>
+<li><a href="08-production-deployment/05-slo-and-observability.html"><code>05-slo-and-observability.md</code></a> — TTFT/TPOT/p99 SLO + Prometheus + OTel。</li>
+<li><a href="08-production-deployment/06-reliability-and-failure-modes.html"><code>06-reliability-and-failure-modes.md</code></a> — 8 个失效模式与防护。</li>
+<li><a href="08-production-deployment/07-incident-playbook.html"><code>07-incident-playbook.md</code></a> — 8 个真实故障 runbook。</li>
+<li><a href="08-production-deployment/08-monitoring-cookbook.html"><code>08-monitoring-cookbook.md</code></a> — 可直接抄走的 PromQL / 告警规则 YAML / Grafana dashboard 骨架。</li>
+<li><a href="08-production-deployment/09-vllm-doctor-skill.html"><code>09-vllm-doctor-skill.md</code></a> — 把 06-07-08 章人工流程编成 agent 自动跑：7 阶段工作流 + 决策树 + 三级整改 + 离线 dry-run。</li>
+<li><a href="08-production-deployment/10-gpu-utilization-and-tail-latency.html"><code>10-gpu-utilization-and-tail-latency.md</code></a> — 🆕 全链路性能诊断：GPU-Util 为何是谎言、MBU/MFU、带宽/利用率为何打不满、长尾 8 类根因与处置。</li>
+</ul>
+<h3 id="9-09-advanced-features-5">9. 应用特性 · <code>09-advanced-features/</code> — 5 章</h3>
+<ul>
+<li><a href="09-advanced-features/01-sampling-and-logits.html"><code>01-sampling-and-logits.md</code></a> — top-k/p / temperature / DRY / logprobs / penalties。</li>
+<li><a href="09-advanced-features/02-structured-output.html"><code>02-structured-output.md</code></a> — xgrammar / llguidance / outlines 后端对比 + JSON schema。</li>
+<li><a href="09-advanced-features/03-multimodal.html"><code>03-multimodal.md</code></a> — 图像/视频/音频编码器、encoder cache、Qwen2-VL。</li>
+<li><a href="09-advanced-features/04-lora-serving.html"><code>04-lora-serving.md</code></a> — LoRAModelManager / Punica / 多 LoRA batching。</li>
+<li><a href="09-advanced-features/05-embedding-and-pooling.html"><code>05-embedding-and-pooling.md</code></a> — BGE / E5 / BGE-M3 / 复用 vLLM 引擎做 embedding。</li>
+</ul>
+<hr />
+<h2 id="vllm_1">vLLM 仓库地标速查</h2>
+<table class="three-line">
+<thead>
+<tr>
+<th>想知道什么</th>
+<th>去哪里看</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用户怎么调用 vLLM</td>
+<td><code>vllm/entrypoints/llm.py</code>、<code>vllm/entrypoints/openai/api_server.py</code></td>
+</tr>
+<tr>
+<td>引擎主循环</td>
+<td><code>vllm/v1/engine/core.py</code>、<code>vllm/v1/engine/llm_engine.py</code></td>
+</tr>
+<tr>
+<td>调度器（决定本步跑哪些请求）</td>
+<td><code>vllm/v1/core/sched/scheduler.py</code>（2300+ 行，全核心）</td>
+</tr>
+<tr>
+<td>KV cache 块管理</td>
+<td><code>vllm/v1/core/kv_cache_manager.py</code>、<code>block_pool.py</code></td>
+</tr>
+<tr>
+<td>Prefix caching hash</td>
+<td><code>vllm/v1/core/kv_cache_utils.py:541</code> (<code>hash_block_tokens</code>)</td>
+</tr>
+<tr>
+<td>Model runner（前向）</td>
+<td><code>vllm/v1/worker/gpu_model_runner.py</code></td>
+</tr>
+<tr>
+<td>Attention 后端选择</td>
+<td><code>vllm/v1/attention/backends/</code>（FlashAttn / FlashInfer / Triton / MLA）</td>
+</tr>
+<tr>
+<td>PagedAttention CUDA</td>
+<td><code>csrc/attention/</code></td>
+</tr>
+<tr>
+<td>模型实现</td>
+<td><code>vllm/model_executor/models/</code>（llama.py、qwen.py … 共 292 个）</td>
+</tr>
+<tr>
+<td>张量并行 / 集合通信</td>
+<td><code>vllm/distributed/parallel_state.py</code></td>
+</tr>
+<tr>
+<td>量化</td>
+<td><code>vllm/model_executor/layers/quantization/</code></td>
+</tr>
+<tr>
+<td>投机解码</td>
+<td><code>vllm/v1/spec_decode/</code></td>
+</tr>
+<tr>
+<td>采样</td>
+<td><code>vllm/v1/sample/</code>、<code>csrc/sampler.cu</code></td>
+</tr>
+<tr>
+<td>KV transfer（disaggregated）</td>
+<td><code>vllm/distributed/kv_transfer/</code>、<code>vllm/v1/kv_offload/</code></td>
+</tr>
+</tbody>
+</table>
+<p>完整地图见 <a href="01-overview/04-project-structure.html"><code>01-overview/04-project-structure.md</code></a>。</p>
+<hr />
+<h2 id="5">学习方法（5 条铁律）</h2>
+<ol>
+<li><strong>概念落到代码。</strong> 不看博客的二手解读，源码才是唯一真相。</li>
+<li><strong>先看数据契约，再看内部。</strong> 读 Scheduler 之前先看 <code>SchedulerOutput</code> 的字段；读 KV manager 之前先看 <code>KVCacheBlocks</code> 的形状。</li>
+<li><strong>打 print 比读注释快。</strong> 用 <code>LLM("facebook/opt-125m").generate(...)</code> 给 Scheduler、KVCacheManager 各加一句 print，跑一次就懂。</li>
+<li><strong>三张图刻进脑子。</strong> 请求生命周期、KV 物理↔逻辑映射、Scheduler 一步内的决策流。每张都自己画一遍。</li>
+<li><strong>永远做对比。</strong> 讲 vLLM 的优势，必须能讲清"HF Transformers 是怎么做的、为什么慢"。</li>
+</ol>
+<hr />
+<h2 id="_5">工程理解自检清单</h2>
+<p>读完整套笔记后，下面每个问题应该能在 1-2 分钟内讲清，并指出对应源码位置：</p>
+<ul>
+<li>为什么 PagedAttention 能把吞吐提升 24×？瓶颈在哪？</li>
+<li>vLLM 的 KV block 默认 16 token 是怎么选的？太大太小各有什么问题？</li>
+<li>Continuous batching 和 static batching 的本质区别？为什么 GPU 利用率提升？</li>
+<li>Prefix caching 的 hash 怎么算？怎么避免冲突？多模态怎么处理？</li>
+<li>Chunked prefill 解决了什么？为什么 V1 默认开启？</li>
+<li>Tensor parallel 在 MLP 用 column → row 的原因？AllReduce 落在哪？</li>
+<li>Speculative decoding 的接受率怎么算？拒绝采样的数学推导写一遍。</li>
+<li>FP8 / INT8 / INT4 各自的精度损失主要发生在哪？</li>
+<li>V0 → V1 重构的三个最大改变是什么？为什么这么改？</li>
+<li>KV 不够时怎么处理？V1 默认 recompute 还是 swap，为什么？</li>
+</ul>
+<p>每题都有专门展开，见 <a href="06-interview/"><code>06-interview/</code></a>。</p>
+<hr />
+<h2 id="_6">必读资料</h2>
+<p>按阅读顺序：</p>
+<ol>
+<li><strong>PagedAttention 论文</strong> — Kwon et al., <em>Efficient Memory Management for LLM Serving with PagedAttention</em>, SOSP 2023。先读这篇，再读代码。</li>
+<li><strong>Continuous Batching 博客</strong> — Anyscale, <em>How Continuous Batching Enables 23× Throughput</em>。</li>
+<li><strong>vLLM 官方文档</strong> — https://docs.vllm.ai/ ，重点看 design / kernel 章节。</li>
+<li><strong>FlashAttention v1/v2/v3</strong> — 理解 SRAM tiling 的关键。</li>
+<li><strong>Speculative Decoding 论文</strong> — Leviathan et al., 2023, <em>Fast Inference from Transformers via Speculative Decoding</em>。</li>
+<li><strong>EAGLE / MTP</strong> — 当下最强的投机方案系列。</li>
+</ol>
+<hr />
+<h2 id="_7">构建与部署</h2>
+<p>把这份手册转成 HTML 网站、PDF、EPUB，或者部署到 GitHub Pages，看 <a href="DEPLOY.html"><code>DEPLOY.md</code></a>。一键命令（脚本会自动用项目相对路径，不再依赖固定位置）：</p>
+<div class="codehilite"><pre><span></span><code>python3<span class="w"> </span>build_html.py<span class="w">      </span><span class="c1"># → ../vllm-learning-html/  (含搜索 + 暗黑切换 + Mermaid + 阅读时间)</span>
+python3<span class="w"> </span>build_pdf_epub.py<span class="w">  </span><span class="c1"># → ../vllm-learning-html/vllm-learning.pdf + .epub</span>
+./deploy_gh_pages.sh<span class="w"> </span>&lt;repo-url&gt;
+</code></pre></div>
+
+<p>如果你想把材料放别处，设环境变量 <code>VLLM_LEARNING_SRC</code> / <code>VLLM_LEARNING_DST</code> 即可。</p>
+<hr />
+<h2 id="skillvllm-doctor">自动排障 Skill：<code>vllm-doctor</code></h2>
+<p>仓库内置了一个 Claude Code skill <code>vllm-doctor</code>，把第 06-07-08 章里散落的 incident playbook 编成 agent 可以自动跑的 7 阶段流程：环境探测 → 拉 Golden 3 指标 → 决策树路由 → 深度诊断 → 分级整改（L1/L2 自动跑，L3 弹确认）→ 恢复验证 → 输出报告。</p>
+<p><strong>安装到本地 Claude Code</strong>：</p>
+<div class="codehilite"><pre><span></span><code>cp<span class="w"> </span>-r<span class="w"> </span>.claude/skills/vllm-doctor<span class="w"> </span>~/.claude/skills/
+</code></pre></div>
+
+<p><strong>触发</strong>：在 Claude Code 里输入 <code>/vllm-doctor</code>（前置必须 export <code>VLLM_NAMESPACE</code> / <code>PROM_URL</code> / <code>KUBECONFIG</code>）。</p>
+<p><strong>不连集群也想验证逻辑</strong>：</p>
+<div class="codehilite"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">VLLM_DOCTOR_FIXTURE</span><span class="o">=</span>/path/to/golden3.json<span class="w">   </span><span class="c1"># 跳过 Prometheus，直接喂 mock 数据</span>
+</code></pre></div>
+
+<p>覆盖的 8 类事故：KV 抢占级联、NCCL hang、GPU OOM、客户端重试雪崩、prefix cache 命中率塌方、冷启动、输出质量异常、LoRA 适配器抖动。完整说明见 <a href=".claude/skills/vllm-doctor/SKILL.html"><code>.claude/skills/vllm-doctor/SKILL.md</code></a>。</p>
+<hr />
+<h2 id="_8">贡献与扩展</h2>
+<p>发现 <code>file_path:line_number</code> 失效了？vLLM 主分支变化快，欢迎 PR 修正。</p>
+<p>想新加一章？沿用每章统一的"章首导读 + 正文 + 小结/自检/下一步"模板（任意章可作范例）。</p>
+<hr />
+<p><strong>开始读 <a href="01-overview/01-what-is-vllm.html"><code>01-overview/01-what-is-vllm.md</code></a>。</strong> 或者从 <a href="01-overview/00-prerequisites.html"><code>00-prerequisites.md</code></a> 铺前置。</p></article>
+      <nav class="page-nav">
+<span class="placeholder"></span>
+<a class="next" href="01-overview/00-prerequisites.html"><span class="label">下一篇</span><span class="title">00. 前置知识：进入 vLLM 之前要懂的概念</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

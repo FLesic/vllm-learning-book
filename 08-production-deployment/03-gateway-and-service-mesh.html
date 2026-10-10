@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>03. API 网关与 Service Mesh：让 LLM 流量"可治理" · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li class="current"><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part VIII</span> · 生产部署</div>
+      <div class="reading-time">预计阅读 10 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="03-api-service-mesh-llm">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 负责 Ingress / Service Mesh / 多租户治理的平台 SRE 与安全工程师。</p>
+<p><strong>前置阅读：</strong> <a href="../01-overview/02-architecture.html"><code>02-architecture.md</code></a>、<a href="./02-smart-routing-and-load-balancing.html"><code>02-smart-routing-and-load-balancing.md</code></a></p>
+<p><strong>耗时：</strong> 约 30 分钟</p>
+<p><strong>学完能：</strong>
+1. 划清 API Gateway 与 Service Mesh 在 LLM 场景下的边界
+2. 用 Gateway API Inference Extension (InferencePool / EPP) 描述请求路径
+3. 配置 SSE / 长 body / 长超时的 Envoy 与 K8s Ingress 参数
+4. 避开 mTLS 拦截 NCCL、sidecar 影响 RDMA 的典型陷阱</p>
+</blockquote>
+<p>通用微服务里 Service Mesh 是为了 mTLS / Observability / Resilience。LLM 场景下，Mesh 还要扛 SSE 长连接、ExtProc 智能路由、大 Body 体的 ratelimit、token 级 cost 计费——这些点常被忽略。</p>
+<hr />
+<h2 id="1-llm-service-mesh">1. 为什么 LLM 也要走 Service Mesh？</h2>
+<p>抛开"赶时髦"，LLM 推理对 mesh 有真实需求：</p>
+<ol>
+<li><strong>零信任 mTLS</strong>：模型权重 + 用户 prompt 都是敏感数据</li>
+<li><strong>租户隔离 / Quota</strong>：不同业务方共用 GPU，要按 token / RPS 限流</li>
+<li><strong>可观测性统一</strong>：trace 串联 Gateway → EPP → vLLM Pod</li>
+<li><strong>熔断 / 重试 / 超时治理</strong>：单 Pod 卡 NCCL 时不要拖死全网</li>
+<li><strong>流量管理</strong>：金丝雀、shadow traffic、A/B</li>
+<li><strong>多协议</strong>：HTTP/2 + SSE 流式、gRPC、WebSocket</li>
+</ol>
+<p>但 LLM 流量有几个<strong>特殊性</strong>让 mesh 必须特别配置，下面逐个说。</p>
+<hr />
+<h2 id="2-vs-mesh">2. 网关 vs Mesh：边界在哪里？</h2>
+<pre class="mermaid">flowchart TD
+    subgraph North["入口层（南北向）"]
+        Gateway["L7 API Gateway&lt;br/&gt;· 协议适配（OpenAI / Anthropic protocol）&lt;br/&gt;· Auth / API key&lt;br/&gt;· Quota / Rate limit&lt;br/&gt;· Cost tracking&lt;br/&gt;&lt;i&gt;例：LiteLLM / Envoy AI Gateway&lt;/i&gt;"]
+    end
+    subgraph EW["集群东西向"]
+        Mesh["Service Mesh（Istio / Linkerd / Cilium）&lt;br/&gt;· mTLS&lt;br/&gt;· Cross-pod ratelimit&lt;br/&gt;· Cross-pod retry / circuit breaker&lt;br/&gt;· Cross-pod observability&lt;br/&gt;· 通过 ExtProc 接入 Smart Router"]
+    end
+    subgraph Data["推理实例"]
+        Pod["vLLM Pod（with optional sidecar）"]
+    end
+    Gateway --&gt; Mesh --&gt; Pod
+
+    classDef ingress fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef mesh    fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef pod     fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class Gateway ingress;
+    class Mesh mesh;
+    class Pod pod;</pre>
+<p><strong>网关</strong>主要管"南北向"（用户 ↔ 集群），<strong>Mesh</strong> 主要管"东西向"（集群内 Pod ↔ Pod）。
+现代 Gateway API 把两者统一了：Istio 1.28+ 同时是网关也是 mesh。</p>
+<hr />
+<h2 id="3-istio-gateway-api-inference-extension">3. Istio + Gateway API Inference Extension：当下标准</h2>
+<h3 id="31">3.1 整体</h3>
+<pre class="mermaid">flowchart TD
+    Client["Client&lt;br/&gt;POST /v1/chat/completions"]
+    subgraph Istio["Istio Gateway（Envoy）"]
+        Route["HTTPRoute（Gateway API）&lt;br/&gt;match: /v1/chat/completions&lt;br/&gt;backend: InferencePool"]
+        ExtProc["ExtProc filter&lt;br/&gt;↓&lt;br/&gt;EPP（gRPC service）&lt;br/&gt;EPP 选定 Pod IP 注入 Envoy 路由"]
+        Other["其他 filter&lt;br/&gt;· JWT auth&lt;br/&gt;· Rate limit (Redis-based)&lt;br/&gt;· Telemetry"]
+    end
+    Pod["vLLM Pod（sidecar 可选）"]
+
+    Client --&gt; Route
+    Route --&gt; ExtProc
+    Route --&gt; Other
+    ExtProc --&gt; Pod
+
+    classDef ext fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef route fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef pod fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class Client,Route,Other route;
+    class ExtProc ext;
+    class Pod pod;</pre>
+<h3 id="32-crd">3.2 关键 CRD</h3>
+<p>Gateway API Inference Extension 引入：</p>
+<ul>
+<li><code>InferenceModel</code>：声明一个模型（名字、版本、目标 InferencePool）</li>
+<li><code>InferencePool</code>：一组 vLLM Pod + EPP 配置</li>
+<li>复用 <code>HTTPRoute</code> 把请求路由到 InferencePool</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inference.networking.k8s.io/v1alpha2</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">InferencePool</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llama-70b-pool</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm</span>
+<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llama-3-70b</span>
+<span class="w">  </span><span class="nt">endpointPickerRef</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">""</span>
+<span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llm-d-epp</span>
+</code></pre></div>
+
+<h3 id="33-extproc">3.3 ExtProc 流程</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Client
+    participant Envoy
+    participant EPP as EPP (gRPC)
+    participant Pod as vLLM Pod
+    Client-&gt;&gt;Envoy: HTTP request
+    Envoy-&gt;&gt;EPP: ExtProc(headers, body)
+    EPP-&gt;&gt;EPP: 解码 body 取 prompt/model/lora_id
+    EPP-&gt;&gt;EPP: 路由打分（cache + load + lora）
+    EPP--&gt;&gt;Envoy: 选定 Pod IP + header
+    Envoy-&gt;&gt;Pod: 转发请求
+    Pod--&gt;&gt;Client: SSE stream</pre>
+<p>整个过程 &lt; 1ms（EPP 用 Go 写，cache 状态都在内存）。</p>
+<hr />
+<h2 id="4-ssemesh">4. 流式 SSE：Mesh 最容易翻车的地方</h2>
+<p>LLM API 的 99% 流量是 <strong>Server-Sent Events</strong>：long-lived HTTP/2 连接，token 一个个推。Mesh 默认配置常常出问题：</p>
+<h3 id="41-buffer-batch">4.1 buffer：致命的"看似工作但 batch 输出"</h3>
+<p>Envoy 默认有 response buffering。开启后 token 会被攒在 buffer 里一起送，TTFT 看起来还行但用户看到的是"卡半天再一整段刷出来"。</p>
+<p>修复：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># EnvoyFilter</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">configPatches</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">applyTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NETWORK_FILTER</span>
+<span class="w">    </span><span class="nt">match</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GATEWAY</span>
+<span class="w">    </span><span class="nt">patch</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">operation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MERGE</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">typed_config</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">stream_idle_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span><span class="w">  </span><span class="c1"># 防止长 SSE 被砍</span>
+<span class="w">          </span><span class="c1"># 关掉 response buffering</span>
+</code></pre></div>
+
+<h3 id="42-idle-timeout">4.2 idle timeout</h3>
+<p>默认 60-300s。LLM 长生成（几分钟）会被砍。要调大或关闭。</p>
+<h3 id="43-http2">4.3 HTTP/2 设置</h3>
+<ul>
+<li><code>http2_max_concurrent_streams</code> 默认 100，并发高时撞上限</li>
+<li><code>initial_stream_window_size</code> 太小导致 token 推送慢</li>
+</ul>
+<h3 id="44-mtls-sse">4.4 mTLS + SSE</h3>
+<p>Istio 默认 mTLS 在 ALPN 协商时偶发抖动，会让 SSE 第一帧迟到。
+解决：固定走 TCP，由 <code>Sidecar</code> CRD 显式配置 outbound。</p>
+<hr />
+<h2 id="5-rate-limitllm">5. Rate Limit：LLM 维度跟传统不一样</h2>
+<p>传统 ratelimit：QPS、并发数。
+LLM 需要的维度：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>维度</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RPS / 并发</td>
+<td>防雪崩</td>
+</tr>
+<tr>
+<td>input tokens / s</td>
+<td>防大 prompt 攻击</td>
+</tr>
+<tr>
+<td>output tokens / s</td>
+<td>防"max_tokens=999999"耗 GPU</td>
+</tr>
+<tr>
+<td>total tokens / day</td>
+<td>按 quota 计费</td>
+</tr>
+<tr>
+<td>Concurrent streams</td>
+<td>防 SSE 连接泄漏</td>
+</tr>
+</tbody>
+</table>
+<p>实现：</p>
+<ul>
+<li>Envoy <code>local_ratelimit</code>（单实例）</li>
+<li><code>global_ratelimit</code> + Redis（跨 Pod 一致）</li>
+<li>或自研：Envoy ExtAuthz → 自定义 quota 服务</li>
+</ul>
+<p><strong>token 维度的 ratelimit 难点</strong>：实际 token 数只有推理完才知道。两种做法：</p>
+<ol>
+<li>用 tokenizer 在 gateway 层先算 input tokens；预估 output（max_tokens 上限）</li>
+<li>推理完上报真实用量，超出 quota 下次拒绝</li>
+</ol>
+<hr />
+<h2 id="6-llm">6. 重试与熔断：在 LLM 里要小心</h2>
+<p>普通服务重试很自然。LLM 推理重试要谨慎：</p>
+<h3 id="61-5xx">6.1 不要无脑重试 5xx</h3>
+<ul>
+<li>503 通常是 KV 压力或队列满 → 重试同样的 Pod 还是会 503</li>
+<li>应该让 EPP 选另一个 Pod，且只在 first byte 前重试</li>
+</ul>
+<h3 id="62">6.2 流式开始后不能重试</h3>
+<p>SSE 第一帧已经发给客户端 → 中断只能让客户端感知错误，不能透明重试。</p>
+<h3 id="63-budget">6.3 重试 budget</h3>
+<p>Envoy 的 <code>retry_budget</code> 限制全局重试比例（如 &lt; 20%），避免 retry storm。</p>
+<h3 id="64">6.4 熔断</h3>
+<p>按 Pod 熔断：连续 5xx 多了暂时不路由到该 Pod。
+但是要小心：cache-aware router 已经在感知 Pod 状态，熔断要和它协调，避免双重决策冲突。</p>
+<hr />
+<h2 id="7-body-prompt">7. 大 Body / 长 prompt 的特殊配置</h2>
+<p>LLM 请求 body 可能很大（multimodal 携带图片 base64、长 RAG 上下文）。常见配置默认值不够：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Envoy</span>
+<span class="nt">typed_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">max_request_bytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100MB</span><span class="w">        </span><span class="c1"># 默认 1MB</span>
+<span class="w">  </span><span class="nt">max_request_headers_kb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">      </span><span class="c1"># tool_use schema 大</span>
+
+<span class="c1"># K8s Ingress</span>
+<span class="nt">nginx.ingress.kubernetes.io/proxy-body-size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100m</span>
+<span class="nt">nginx.ingress.kubernetes.io/proxy-read-timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span>
+<span class="nt">nginx.ingress.kubernetes.io/proxy-send-timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span>
+</code></pre></div>
+
+<p><strong>注意 mTLS 加密大 body 有显著 CPU 开销</strong>。生产可以让 mTLS 终结在 Gateway，内网用普通 TCP（视安全模型）。</p>
+<hr />
+<h2 id="8-sidecar-sidecar">8. Sidecar 还是不要 Sidecar？</h2>
+<p>Istio 推 sidecar 模式（每 Pod 一个 envoy）。LLM 场景下要考虑：</p>
+<h3 id="81-sidecar">8.1 Sidecar 的代价</h3>
+<ul>
+<li>每 Pod 多 30-100MB 内存 + 5-10% CPU</li>
+<li>多一跳 latency（通常 &lt; 1ms 但 high QPS 累积）</li>
+<li>对 NCCL/RDMA 流量必须 exclude 否则破坏 GPU 通信</li>
+</ul>
+<h3 id="82-sidecarlessambient-mode-cilium-linkerd2">8.2 Sidecarless（Ambient mode / Cilium / Linkerd2）</h3>
+<p>Istio Ambient mode 把 sidecar 抽到节点级 proxy（ztunnel）。
+对 LLM 适配更好：vLLM Pod 内不动，节点级 proxy 处理 mTLS + L7 治理。</p>
+<h3 id="83">8.3 推荐</h3>
+<ul>
+<li>早期：Sidecar 简单，开箱</li>
+<li>规模化：迁移到 Ambient / Cilium eBPF 模式，省资源</li>
+</ul>
+<hr />
+<h2 id="9-06-slo-and-observability">9. 观测一体化（详见 06-slo-and-observability）</h2>
+<p>Mesh 是 trace 串联的天然位置：</p>
+<pre class="mermaid">gantt
+    title trace 'req-abc-123'
+    dateFormat X
+    axisFormat %s ms
+
+    section Edge
+    istio-ingress.handle      :a, 0, 2
+    ext-proc.epp_pick (router 决策)  :b, after a, 1
+    istio-mesh.forward        :c, after b, 1
+    section vLLM Pod 7
+    queue (排队)              :d, after c, 46
+    prefill (算 prompt)        :e, after d, 100
+    first_token (TTFT)        :milestone, after e, 0
+    decode_stream             :f, after e, 2850
+    section Edge
+    istio-ingress.last_byte   :g, after f, 1</pre>
+<p>Istio + OTel + Tempo + Grafana 一套下来，能在 Grafana 上看到任意一个请求的完整时间线。</p>
+<hr />
+<h2 id="10">10. 真实部署的"小但能省命"的配置</h2>
+<p>下面是一份精简的 Istio + vLLM 生产配置要点：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. Gateway listener：HTTP/2 + SSE 友好</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">443</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HTTPS</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SIMPLE</span><span class="w">  </span><span class="c1"># mTLS 终结在 gateway</span>
+
+<span class="c1"># 2. VirtualService：长超时</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span><span class="w">   </span><span class="c1"># SSE 可能 &gt; 5 分钟</span>
+<span class="w">  </span><span class="nt">retries</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">    </span><span class="nt">perTryTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span>
+<span class="w">    </span><span class="nt">retryOn</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gateway-error,connect-failure</span><span class="w">  </span><span class="c1"># 不重试 5xx (LLM 没意义)</span>
+
+<span class="c1"># 3. DestinationRule：连接池 + 熔断</span>
+<span class="w">  </span><span class="nt">connectionPool</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">http</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">h2UpgradePolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">UPGRADE</span>
+<span class="w">      </span><span class="nt">maxRequestsPerConnection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">      </span><span class="c1"># 不要复用，每 SSE 独立</span>
+<span class="w">      </span><span class="nt">idleTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600s</span>
+<span class="w">  </span><span class="nt">outlierDetection</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">consecutive5xxErrors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">           </span><span class="c1"># 连续 10 次 5xx 才隔离</span>
+<span class="w">    </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+<span class="w">    </span><span class="nt">baseEjectionTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60s</span>
+
+<span class="c1"># 4. Sidecar：明确通信范围（关键！避免 NCCL 被拦）</span>
+<span class="w">  </span><span class="nt">egress</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">hosts</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"./*"</span>
+<span class="w">    </span><span class="nt">bind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0.0.0</span>
+<span class="w">  </span><span class="nt">inboundConnectionPool</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">tcp</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">maxConnections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">  </span><span class="nt">workloadSelector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm</span>
+<span class="w">  </span><span class="c1"># outbound 不限制 NCCL/RDMA 端口</span>
+
+<span class="c1"># 5. PeerAuthentication：mTLS 但允许 NCCL plaintext</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mtls</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">STRICT</span>
+<span class="w">  </span><span class="nt">portLevelMtls</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">51234</span><span class="p">:</span><span class="w">  </span><span class="c1"># NCCL 通信端口（示例）</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DISABLE</span>
+</code></pre></div>
+
+<hr />
+<h2 id="11-mtls-nccl">11. 故障实例：mTLS 把 NCCL 干挂了</h2>
+<p>真实事故：某团队上 Istio mTLS，集群所有 Pod-to-Pod 通信走 sidecar。
+<strong>症状</strong>：vLLM TP=8 Pod 启动卡死在 NCCL init，超时 10 分钟。
+<strong>根因</strong>：sidecar 拦截了 NCCL 走的 IB 通信端口，包被加密但 NCCL 不会解。
+<strong>解决</strong>：用 <code>Sidecar</code> CRD 把 NCCL 端口段 exclude，或者 PeerAuth 在那些端口 DISABLE mTLS。</p>
+<p>教训：<strong>Mesh sidecar 必须放过 NCCL/RDMA 端口</strong>。生产部署前用 <code>nccl-tests</code> 验证。</p>
+<hr />
+<h2 id="12">12. 工程自检问答</h2>
+<p><strong>Q: 为什么不直接用 K8s Service + Ingress？</strong>
+A: 几个原因：①K8s Service LB 只能基于 IP/conn-hash，不感知 LLM 语义；②Ingress 不支持 ExtProc 类型的扩展；③缺少跨 Pod 治理（mTLS、ratelimit、observability）。生产规模必走 Gateway API + Mesh。</p>
+<p><strong>Q: Sidecar 给 LLM Pod 增加多少 latency？</strong>
+A: 单跳约 0.3-1ms，相对于 LLM TTFT（几十 ms 到几百 ms）影响小。但要确保 sidecar 不拦 NCCL 端口。</p>
+<p><strong>Q: Mesh 怎么做 token-level ratelimit？</strong>
+A: Envoy 自带的 ratelimit 是 connection / request 维度。token 级需要：①gateway 层 tokenize 算 input；②output 推完后由 vLLM 上报实际 token；③异步累加到 quota 服务（Redis / 自研）。</p>
+<p><strong>Q: 流式输出怎么和 mesh 配合？</strong>
+A: 关掉 response buffering、调大 stream_idle_timeout、HTTP/2 stream concurrency 调到几千、不要在 first byte 后启用重试。</p>
+<p><strong>Q: 多 region 的 mesh 怎么联邦？</strong>
+A: Istio multi-cluster（mesh federation）或者 Cilium ClusterMesh。但<strong>跨 region 的 LLM 流量通常不走 mesh 直连</strong>——延迟太高，业务上不合理。一般是每 region 自治，外层一个全局 LB 做 region 路由。</p>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>Gateway 管南北向（协议、Auth、Quota、Cost），Mesh 管东西向（mTLS、跨 Pod 治理）；Gateway API 把两者统一。</li>
+<li>Gateway API Inference Extension 的 InferenceModel / InferencePool / EPP 是 2026 年的标准抽象。</li>
+<li>SSE 在 mesh 上至少要调 3 处：关闭 response buffering、调大 stream_idle_timeout、HTTP/2 stream 并发上限。</li>
+<li>LLM 维度的 ratelimit 比 QPS 复杂得多：input / output / total tokens / 并发流都要管。</li>
+<li>mTLS + Sidecar 必须放过 NCCL/RDMA 端口；规模化推荐 Ambient / Cilium eBPF。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<blockquote>
+<p>不用照着原文复述，重点是把现象、机制、源码入口和取舍讲顺。</p>
+</blockquote>
+<p><strong>1. SSE 场景下 Envoy/Istio 必须改默认值的至少 3 个参数。</strong></p>
+<table class="three-line">
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>推荐值</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stream_idle_timeout</code></td>
+<td>5min（Envoy 默认）</td>
+<td><strong>0 或 600s</strong></td>
+<td>SSE 流期间 idle 可能 30s+（用户在读），默认会被剪断</td>
+</tr>
+<tr>
+<td><code>route.timeout</code></td>
+<td>15s</td>
+<td><strong>0 或 600s</strong></td>
+<td>route timeout 是整个请求超时，SSE 长流必须放宽</td>
+</tr>
+<tr>
+<td><code>http2_protocol_options.initial_stream_window_size</code></td>
+<td>64 KB</td>
+<td><strong>256 KB-1 MB</strong></td>
+<td>window 小会让 SSE 流频繁等 WINDOW_UPDATE，影响 TPOT</td>
+</tr>
+<tr>
+<td><code>http_filters.buffer.max_request_bytes</code></td>
+<td>4 MB</td>
+<td><strong>保持小</strong> 但加 streaming bypass</td>
+<td>长 prompt 不能被全缓存（影响 TTFT）</td>
+</tr>
+<tr>
+<td><code>keepalive.interval</code></td>
+<td>不启用</td>
+<td><strong>30s ping</strong></td>
+<td>中间路由器 idle 60s 会断连，主动 keepalive 保命</td>
+</tr>
+<tr>
+<td><code>circuit_breaker.max_pending_requests</code></td>
+<td>1024</td>
+<td><strong>&gt;10000</strong></td>
+<td>LLM 请求并发高，队列要给够</td>
+</tr>
+</tbody>
+</table>
+<p>最常踩坑的是前两个——SSE 跑几分钟就被 timeout 剪断、用户投诉。</p>
+<hr />
+<p><strong>2. 按 output token 累计计费 + 对路由路径侵入最小？</strong></p>
+<p><strong>思路</strong>：在 <strong>API Server 出口（vLLM 自己）</strong> 或 <strong>Envoy ExtProc/Lua 在响应流过滤时计数</strong>，<strong>不要</strong>在中间路由层做。</p>
+<p><strong>最小侵入方案</strong>：</p>
+<ol>
+<li><strong>vLLM 已经在 <code>metrics</code> 里暴露 <code>vllm:generation_tokens_total{model, user_id}</code></strong>——如果用户 ID 已经通过 header 传到 vLLM，直接订阅这个 metric 就有计费数据</li>
+<li><strong>Envoy Lua filter on response_body</strong>：解析 SSE chunk（<code>data: {"choices":[{"text":"..."}]}</code>），统计 token 数（用 tiktoken Lua 或简单字数估算），写入 Redis 用户计数</li>
+</ol>
+<p><strong>为什么不在路由层</strong>：</p>
+<ul>
+<li>路由器拿到的是请求 metadata，不知道实际生成多少 token</li>
+<li>复杂逻辑塞路由器影响路由本身延迟</li>
+<li>路由器换实现（llm-d → AIBrix）就要重新写</li>
+</ul>
+<p><strong>核心架构</strong>：</p>
+<div class="codehilite"><pre><span></span><code>client → Envoy (Lua: count_response_tokens) → vLLM
+                  ↓
+              Redis (user_token_usage hash)
+                  ↑
+         Billing service 周期性拉
+</code></pre></div>
+
+<hr />
+<p><strong>3. mTLS 让 NCCL 启动卡死，用哪两种 CRD/配置排除？</strong></p>
+<p><strong>根本原因</strong>：mTLS sidecar（Istio）拦截了 NCCL 的 P2P 流量（GPU 间 RDMA / TCP），但 NCCL 用自己的握手协议，与 mTLS 不兼容。</p>
+<p><strong>排除方案</strong>：</p>
+<ol>
+<li><strong>PeerAuthentication</strong> 设 NCCL 端口为 <code>DISABLE</code>（关闭 mTLS）：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">security.istio.io/v1beta1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PeerAuthentication</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm-nccl-bypass</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">vllm</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">portLevelMtls</span><span class="p">:</span>
+<span class="w">    </span><span class="s">"29500"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> mode</span><span class="p">:</span><span class="w"> </span><span class="nv">DISABLE</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">      </span><span class="c1"># NCCL TCP discovery</span>
+<span class="w">    </span><span class="s">"29501"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> mode</span><span class="p">:</span><span class="w"> </span><span class="nv">DISABLE</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="c1"># NCCL P2P 端口（动态）也要全放</span>
+</code></pre></div>
+
+<ol start="2">
+<li><strong>AuthorizationPolicy / NetworkPolicy</strong> 允许 NCCL 端口段：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">security.istio.io/v1beta1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AuthorizationPolicy</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm-nccl</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">vllm</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ALLOW</span>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">to</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">operation</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"29500-29600"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"60000-65535"</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># NCCL 用的范围</span>
+</code></pre></div>
+
+<p>或者更简单：</p>
+<ol start="3">
+<li><strong>Pod annotation 排除部分流量出 sidecar</strong>：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">traffic.sidecar.istio.io/excludeInboundPorts</span><span class="p">:</span><span class="w"> </span><span class="s">"29500,29501,..."</span>
+<span class="w">    </span><span class="nt">traffic.sidecar.istio.io/excludeOutboundIPRanges</span><span class="p">:</span><span class="w"> </span><span class="s">"&lt;gpu_subnet&gt;"</span>
+</code></pre></div>
+
+<p>排查命令：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 看 NCCL 在等什么</span>
+<span class="nv">NCCL_DEBUG</span><span class="o">=</span>INFO<span class="w">  </span>→<span class="w"> </span>查<span class="w"> </span>log
+<span class="c1"># 看 istio-proxy 有没有拦截</span>
+kubectl<span class="w"> </span>logs<span class="w"> </span>&lt;pod&gt;<span class="w"> </span>-c<span class="w"> </span>istio-proxy<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">"29500\|RST"</span>
+</code></pre></div>
+
+<hr />
+<p><strong>4. Ambient mode 比 Sidecar 的最大好处？</strong></p>
+<p><strong>Sidecar mode</strong>：每个 LLM pod 多一个 envoy 容器（~100 MB 内存、几% CPU）。8 卡 TP 部署 = 8 个 sidecar = ~800 MB 浪费 + 网络多一跳。</p>
+<p><strong>Ambient mode</strong>：sidecar 被替换为<strong>节点级共享代理（ztunnel）+ 可选的 L7 waypoint</strong>。每节点 1 个 ztunnel 处理所有 pod 的 mTLS，pod 内不嵌任何代理。</p>
+<p><strong>最大好处 for LLM</strong>：</p>
+<ol>
+<li><strong>网络路径减少一跳</strong>：sidecar 模式下流量走 <code>pod → sidecar → 网络 → sidecar → pod</code>（双 sidecar）；ambient 是 <code>pod → ztunnel(节点) → 网络 → ztunnel(节点) → pod</code>，每端少一次进出 pod 网络栈。LLM 流量包大（KB-MB chunk），这一跳省下来对吞吐有感</li>
+<li><strong>资源大幅节省</strong>：8 卡 TP × N pod 不再每 pod 一个 sidecar，节点级共享，<strong>节点上 sidecar 总成本 1 个</strong></li>
+<li><strong>NCCL 兼容性更好</strong>：ambient 默认走 L4（TCP-level mTLS），不像 sidecar 那样需要复杂的端口豁免——NCCL 跑得过去几率高</li>
+<li><strong>升级</strong>：升级 ztunnel 不重启 LLM pod；sidecar 升级需要每 pod 重启（NCCL group 要重建）</li>
+</ol>
+<p><strong>生产建议</strong>：新部署优先 Ambient（Istio 1.22+ stable）；已有 sidecar 部署可以渐进迁移。详见 https://istio.io/latest/docs/ops/ambient/。</p>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>下一节：<a href="./04-autoscaling-and-capacity.html"><code>04-autoscaling-and-capacity.md</code></a>（流量进来后怎么扩缩容）</li>
+<li>想看源码：vLLM OpenAI 入口在 <code>vllm/entrypoints/openai/</code>；流式响应在 <code>api_server.py</code></li>
+<li>想动手：<a href="../07-hands-on/02-trace-a-request.html"><code>07-hands-on/02-trace-a-request.md</code></a> 用 OTel 串完整 Gateway→Pod trace</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://llm-d.ai/blog/production-grade-llm-inference-at-scale-kserve-llm-d-vllm">Production-Grade LLM Inference at Scale with KServe, llm-d, and vLLM</a></li>
+<li><a href="https://medium.com/@prasannanattuthurai/serving-multiple-llms-on-kubernetes-with-intelligent-routing-using-llm-d-istio-and-litellm-7d33760d1001">Serving Multiple LLMs on Kubernetes with llm-d, Istio, and LiteLLM</a></li>
+<li><a href="https://dev.to/mechcloud_academy/kubernetes-gateway-api-in-2026-the-definitive-guide-to-envoy-gateway-istio-cilium-and-kong-2bkl">Kubernetes Gateway API in 2026: Envoy, Istio, Cilium, Kong</a></li>
+<li><a href="https://www.kubenatives.com/p/service-mesh-debugging-when-istio">Service Mesh Debugging: When Istio Breaks Your Inference Pipeline</a></li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../08-production-deployment/02-smart-routing-and-load-balancing.html"><span class="label">上一篇</span><span class="title">02. 请求调度与负载均衡：LLM 专属的"智能路由"</span></a>
+<a class="next" href="../08-production-deployment/04-autoscaling-and-capacity.html"><span class="label">下一篇</span><span class="title">04. 自动扩缩与容量规划</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

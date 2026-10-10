@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>01. 大规模 vLLM 部署参考架构（2026 视角） · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li class="current"><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part VIII</span> · 生产部署</div>
+      <div class="reading-time">预计阅读 9 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="01-vllm-2026">01. 大规模 vLLM 部署参考架构（2026 视角）</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 准备搭建或评审公司 LLM 推理平台的 SRE / 平台工程师 / 推理架构师。</p>
+<p><strong>前置阅读：</strong> <a href="../01-overview/02-architecture.html"><code>02-architecture.md</code></a>（理解单机 vLLM 的引擎/Worker 模型）、<a href="../01-overview/05-process-and-ipc-internals.html"><code>05-process-and-ipc-internals.md</code></a>（理解多进程 IPC）</p>
+<p><strong>耗时：</strong> 约 25 分钟</p>
+<p><strong>学完能：</strong>
+1. 在白板上画出 5 层 LLM 推理平台架构（Gateway / Smart Router / vLLM 集群 / KV 层级 / 控制平面）
+2. 区分 vLLM Production Stack、llm-d、AIBrix 三套主流栈的定位与取舍
+3. 解释为什么 LLM Pod 必须用 LeaderWorkerSet 而不是普通 Deployment
+4. 识别 K8s 网络层面的 NCCL/RDMA/SSE 常见坑</p>
+</blockquote>
+<p>单机跑 <code>vllm serve</code> 是 demo。生产规模（多卡、多机、多模型、多区域、SLO 驱动）要面对的是一整套<strong>控制平面 + 数据平面</strong>。本节回答："如果让你给一个公司搭 LLM 推理平台，从哪开始？"</p>
+<hr />
+<h2 id="1-llm">1. 从一张图开始：分层 LLM 推理平台</h2>
+<p>把整张图记住，后面讨论任何生产问题都能 map 到某一层。</p>
+<pre class="mermaid">flowchart TD
+    Client["客户端 / 业务应用"]
+    L1["L7 API Gateway / Multi-LLM Gateway&lt;br/&gt;(LiteLLM / Envoy AI Gateway / 自研)&lt;br/&gt;· OpenAI 协议适配、Auth、Quota、Rate Limit、Audit、Cost Track&lt;br/&gt;· 路由到具体模型 / 后端（vLLM、TRT-LLM、第三方 API）"]
+    L2["Inference Gateway (Smart Router)&lt;br/&gt;(llm-d EPP / AIBrix Gateway / Production Stack Router)&lt;br/&gt;· Prefix-cache aware · Load / Queue aware · LoRA aware&lt;br/&gt;· 通过 Envoy ExtProc 接入 Service Mesh"]
+    L3["vLLM 推理实例集群（数据平面）&lt;br/&gt;Pod 1 · Pod 2 · ... · Pod N（每 Pod TP=N）&lt;br/&gt;每 Pod = 1 EngineCore + N Worker（NCCL 同机）"]
+    L4["KV / Prefix Cache 层级&lt;br/&gt;L1: GPU HBM（每 Pod 自管）&lt;br/&gt;L2: CPU DRAM / 本机 NVMe（LMCache）&lt;br/&gt;L3: 分布式 KV 池（Mooncake / 远端 LMCache）&lt;br/&gt;Disaggregated: Prefill 节点群 ⇄ Decode 节点群（NIXL RDMA）"]
+    L5["控制平面：K8s + Operator + Autoscaler + Observability&lt;br/&gt;· LeaderWorkerSet / KServe InferenceService&lt;br/&gt;· KEDA / HPA on LLM metrics&lt;br/&gt;· Prometheus / OTel / Tempo / Grafana"]
+
+    Client --&gt; L1 --&gt; L2 --&gt; L3 --&gt; L4
+    L5 -.-&gt;|"manages"| L3
+    L5 -.-&gt; L4
+
+    classDef edge   fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef gateway fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef data   fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    classDef ctrl   fill:#f7f8fa,stroke:#5b6573,color:#1a1f29;
+    class Client edge;
+    class L1,L2 gateway;
+    class L3,L4 data;
+    class L5 ctrl;</pre>
+<hr />
+<h2 id="2">2. 三套主流"开箱即用"参考栈</h2>
+<p>2026 年生产部署有三套主流方案。至少要叫得出名字、说得出区别。</p>
+<h3 id="21-vllm-production-stackvllm">2.1 vLLM Production Stack（vLLM 官方）</h3>
+<p>仓库：<code>vllm-project/production-stack</code>（GitHub）</p>
+<ul>
+<li>vLLM 团队官方维护</li>
+<li>Helm chart 一键拉起：vLLM Pod + Router + Cache + 监控</li>
+<li>内置组件：<code>vllm-router</code>（基于 prefix-aware 路由）、LMCache 集成</li>
+<li>2026 路线图重点：把路由收敛到 Gateway API Inference Extension、disaggregated prefill、KEDA-based 自动扩缩</li>
+<li>适合：想直接照搬官方实践、不愿意自己选型的团队</li>
+</ul>
+<h3 id="22-llm-dcncf-sandbox">2.2 llm-d（CNCF Sandbox）</h3>
+<p>仓库：<code>llm-d/llm-d</code>（GitHub）。由 Red Hat、Google Cloud、IBM、CoreWeave、NVIDIA 联合发起，2025 年 CNCF 孵化。</p>
+<p>三大支柱：</p>
+<ol>
+<li><strong>vLLM-aware Inference Scheduler</strong>：基于 prefix-cache 命中和负载选 Pod</li>
+<li><strong>Disaggregated Serving</strong>：Prefill / Decode 物理隔离</li>
+<li><strong>Multi-tier KV Cache</strong>：L1 GPU、L2 CPU/SSD、L3 远端</li>
+</ol>
+<p>公开数据：相比 round-robin LB，throughput +38.9%，TTFT -97%。
+适合：希望深度集成 Kubernetes Gateway API、强 SLO 业务场景。</p>
+<h3 id="23-aibrixbytedance-vllm">2.3 AIBrix（ByteDance + vLLM 社区）</h3>
+<p>仓库：<code>vllm-project/aibrix</code>。由字节跳动主导贡献，已与 vLLM 社区合并。</p>
+<ul>
+<li>Gateway + Operator + Autoscaler 全套</li>
+<li>2026 年的杀手特性：<strong>KV Cache Event Synchronization</strong>——vLLM Pod 通过 ZMQ 向 Gateway 实时上报 cache 状态变化，Gateway 据此做近实时 cache-aware 路由</li>
+<li>v0.6（2026 年 3 月）支持 remote tokenizer 统一 tokenization</li>
+<li>适合：大规模 chatbot 场景（cache 命中收益大）、跨 Pod 共享前缀</li>
+</ul>
+<h3 id="24">2.4 怎么选？</h3>
+<table class="three-line">
+<thead>
+<tr>
+<th>选择</th>
+<th>推荐场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Production Stack</td>
+<td>中小规模、想用官方推荐配置、运维资源有限</td>
+</tr>
+<tr>
+<td>llm-d</td>
+<td>已经在用 Kubernetes Gateway API，需要 disaggregated</td>
+</tr>
+<tr>
+<td>AIBrix</td>
+<td>大规模高并发 chat，prefix 复用极重，需要 cache 事件同步</td>
+</tr>
+<tr>
+<td>自研</td>
+<td>已有完整 ML 平台、对 K8s + Envoy 深度掌握、特定监管要求</td>
+</tr>
+</tbody>
+</table>
+<p>也可以混着用：比如外层 LiteLLM（多 LLM 网关）+ 中层 llm-d（推理调度）+ 底层 vLLM 实例。</p>
+<hr />
+<h2 id="3-pod-deployment">3. Pod 编排：为什么不能用 Deployment？</h2>
+<p>普通 <code>Deployment</code> 只能管"一个容器副本数"。LLM 推理 Pod 通常是<strong>多容器集合</strong>：</p>
+<div class="codehilite"><pre><span></span><code>一个 vLLM 推理实例 (TP=8):
+  - leader (rank 0)   ← 1 个 leader Pod
+  - worker (rank 1..7) ← 7 个 worker Pod
+  必须同一 NCCL 通信组、同生共死、IP 互通、同时调度。
+</code></pre></div>
+
+<p>普通 Deployment 做不到"原子的多 Pod 副本"。生产用：</p>
+<h3 id="31-leaderworkersetlws">3.1 LeaderWorkerSet（LWS）</h3>
+<p>K8s SIG 推出的官方 CRD（kubernetes-sigs/lws）。一个"组"包含 1 leader + N worker，<strong>整组作为一个副本</strong>。
+扩缩、滚动更新都按组操作。vLLM Production Stack 默认用 LWS。</p>
+<h3 id="32-kserve-inferenceservice">3.2 KServe InferenceService</h3>
+<p>偏推理服务抽象，封装了模型加载、自动扩缩到 0、Transformer/Predictor 分层。
+LLM 场景下 KServe + llm-d 是 RedHat 推的组合。</p>
+<h3 id="33-ray-serve-anyscale">3.3 Ray Serve / Anyscale</h3>
+<p>基于 Ray actor 编排 worker。优点是动态资源调度灵活；缺点是引入 Ray 这层依赖。</p>
+<hr />
+<h2 id="4">4. 网络：能容易翻车的几个点</h2>
+<p>LLM 推理对网络极度敏感，比一般微服务苛刻：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>通信类型</th>
+<th>要求</th>
+<th>实际坑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TP 内 AllReduce</td>
+<td>NVLink 600+ GB/s</td>
+<td>跨 NUMA 走 PCIe，吞吐掉 5×。Pod 必须 <code>nvidia.com/gpu: 8</code> 整机</td>
+</tr>
+<tr>
+<td>PP 跨段</td>
+<td>100+ Gbps RoCE/IB</td>
+<td>用 K8s 默认 CNI（Calico）会绕 host network，掉到 GbE</td>
+</tr>
+<tr>
+<td>KV Transfer (DP)</td>
+<td>RDMA / NIXL</td>
+<td>不开 GPU-Direct 走 CPU 中转，毫秒级飙升</td>
+</tr>
+<tr>
+<td>API 入口</td>
+<td>HTTP/2 + SSE</td>
+<td>gRPC LB 不一定流式正常，要测 SSE 长连接</td>
+</tr>
+</tbody>
+</table>
+<p>K8s 配置要点：</p>
+<ul>
+<li><code>hostNetwork: true</code> 或 SR-IOV/Multus 让 RDMA 直通</li>
+<li>跨 Pod 走 <code>RoCE</code> 时用 <code>k8s-rdma-shared-dev-plugin</code></li>
+<li>Service Mesh sidecar 不要拦 NCCL / RDMA 端口（坑过很多人）</li>
+</ul>
+<hr />
+<h2 id="5-8-h100">5. 一台 8× H100 节点的典型部署</h2>
+<pre class="mermaid">flowchart TB
+    subgraph Node["物理节点 · 8× H100 + 2× NVLink Switch"]
+        direction TB
+        subgraph OptA["选项 A · 占满整机"]
+            A["Pod · Llama-3-70B · TP=8&lt;br/&gt;1 leader + 7 worker · NCCL NVLink mesh"]
+        end
+        subgraph OptB["选项 B · 切两半"]
+            B1["Pod B · Mixtral-8×22B · TP=4&lt;br/&gt;NCCL NVLink 半边"]
+            B2["Pod C · Mixtral-8×22B · TP=4&lt;br/&gt;NCCL NVLink 半边"]
+        end
+    end
+    Constraint["K8s NodeAffinity + topology-aware scheduling&lt;br/&gt;避免跨 NUMA · 同一 host 不混跑其它 GPU 工作负载"]
+    Constraint -.-&gt; Node
+
+    classDef host fill:#f7f8fa,stroke:#5b6573,color:#1a1f29;
+    classDef pod  fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef note fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    class A,B1,B2 pod;
+    class Constraint note;</pre>
+<p>要点：</p>
+<ul>
+<li>用 <code>nvidia.com/gpu</code> device plugin 报告卡数</li>
+<li>设置 <code>nvidia.com/mig-config</code> 或 <code>topology-aware-scheduling</code> 保证 NVLink 拓扑</li>
+<li>一台机器<strong>通常只跑一种模型</strong>——切多个模型时 NCCL group 容易踩坑</li>
+<li>共享 host 上禁止跑其他 GPU 工作负载（CUDA Graph + 量化矩阵会随机抢资源）</li>
+</ul>
+<hr />
+<h2 id="6">6. 多区域 / 多机房</h2>
+<p>到了 100+ GPU 规模，部署变成"多个相同的 region"：</p>
+<pre class="mermaid">flowchart TB
+    GL["Global LiteLLM / Gateway&lt;br/&gt;路由策略：用户地理就近 · 单 region 故障切换 · 模型版本灰度"]
+    subgraph West["Region · us-west"]
+        W1["vLLM Cluster (TP=8) × 20"]
+        W2["Inference Gateway"]
+        W3["Prefix Cache (regional)"]
+    end
+    subgraph East["Region · us-east"]
+        E1["vLLM Cluster (TP=8) × 20"]
+        E2["Inference Gateway"]
+        E3["Prefix Cache (regional)"]
+    end
+    GL --&gt; W2 --&gt; W1
+    W1 --&gt; W3
+    GL --&gt; E2 --&gt; E1
+    E1 --&gt; E3
+
+    classDef global fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef region fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    class GL global;
+    class W1,W2,W3,E1,E2,E3 region;</pre>
+<p>跨 region 的 KV cache 几乎不可能共享（带宽不够）。每个 region 自带一份完整 prefix cache。冷启动一个 region 时 cache hit rate 会从 0 慢慢爬升。</p>
+<hr />
+<h2 id="7">7. 容器镜像：别让镜像把你坑死</h2>
+<p>LLM 镜像有几个坑：</p>
+<ol>
+<li><strong>镜像大</strong>：vLLM + CUDA + 各种 backend = 15-30GB。冷启动拉取要 minutes 级。
+   - 解决：节点预热（DaemonSet 提前拉）、镜像分层（base + thin overlay）、ContainerD 镜像懒加载（stargz/Nydus）</li>
+<li><strong>模型权重不要打进镜像</strong>：70B 模型 140GB，每次部署拉镜像太慢
+   - 解决：模型权重放对象存储（S3/OSS），通过 init container 或 CSI driver 挂载；hot model 用 fluid 等缓存</li>
+<li><strong>CUDA 兼容</strong>：driver 版本 / CUDA / torch 三者强绑定。production 用确切的 tag，不要 <code>:latest</code></li>
+<li><strong>Python 包冲突</strong>：vLLM 依赖很多 native package（flashinfer、vllm-flash-attn、xformers）。建议用 uv 锁版本 + 多阶段构建</li>
+</ol>
+<hr />
+<h2 id="8-0">8. 推荐部署清单（公司从 0 起步）</h2>
+<p>如果让你给一家中型公司从 0 部署 LLM 推理平台：</p>
+<h3 id="day-1">Day 1</h3>
+<ul>
+<li>单实例 <code>vllm serve</code>，跑通 Llama-3-8B</li>
+<li>Prometheus + Grafana，先看 TTFT/TPOT</li>
+<li>一个最简单的 nginx 在前面</li>
+</ul>
+<h3 id="week-1">Week 1</h3>
+<ul>
+<li>K8s 化：用 LeaderWorkerSet 或 KServe</li>
+<li>多副本 + 简单 round-robin LB</li>
+<li>上 OpenTelemetry tracing</li>
+</ul>
+<h3 id="month-1">Month 1</h3>
+<ul>
+<li>Helm chart 化部署（vLLM Production Stack 起手）</li>
+<li>加 Smart Router（cache-aware）</li>
+<li>接入 Service Mesh（Istio 或 Linkerd）做 mTLS + ratelimit</li>
+<li>灰度发布机制</li>
+</ul>
+<h3 id="quarter-1">Quarter 1</h3>
+<ul>
+<li>Multi-tenancy（quota、fair share）</li>
+<li>量化、投机解码上线</li>
+<li>HPA / KEDA 自动扩缩</li>
+<li>多区域 + 全局 LB</li>
+<li>故障演练（chaos engineering）</li>
+</ul>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>LLM 推理平台分 5 层：API Gateway → Smart Router → vLLM 集群 → KV/Prefix Cache 层级 → 控制平面，每层职责清晰、可独立演进。</li>
+<li>三套主流栈各有定位：Production Stack 开箱即用、llm-d 强 SLO + Gateway API 原生、AIBrix 大规模 chat 场景的 cache 事件同步。</li>
+<li>LLM Pod 是"多 Pod 同生共死"的副本单元，必须用 LeaderWorkerSet / KServe / Ray Serve，普通 Deployment 表达不了原子组。</li>
+<li>网络上 NVLink/RoCE/RDMA 是命脉：Service Mesh sidecar、CNI、hostNetwork 配置不当会让吞吐塌方。</li>
+<li>镜像与权重要解耦：镜像走预热 + 懒加载，模型权重走对象存储 + CSI 挂载。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<blockquote>
+<p>不用照着原文复述，重点是把现象、机制、源码入口和取舍讲顺。</p>
+</blockquote>
+<p><strong>1. 70B TP=8 推理服务用什么 CRD？为什么不用 Deployment？</strong></p>
+<p><strong>用 LeaderWorkerSet（LWS）</strong>（来自 KubeRay / kueue / 自研）。原因：</p>
+<ul>
+<li>TP=8 模型要求 <strong>8 个进程同时启动</strong>才能初始化 NCCL group。Deployment 按 pod 独立调度，不保证同时——可能 7 个起来等第 8 个起来期间 NCCL hang</li>
+<li>任一 worker 崩 → 整组必须重启（NCCL 通信组无法 dynamic add member）。Deployment 默认按 pod 重启，达不到"整组同步重启"</li>
+<li>LWS 把"1 leader + N-1 worker"打包成 atomic unit，整组同时起 / 同时停</li>
+<li>类似 CRD：StatefulSet 也不行（顺序启动，太慢）；Job 不能长期运行</li>
+</ul>
+<p>具体可选 CRD：KubeRay 的 <code>RayCluster</code> + workers、LeaderWorkerSet（K8s SIG-apps 标准化中）、kueue 的 <code>Workload</code>。</p>
+<hr />
+<p><strong>2. SSE 流式请求每 30s 断开，先怀疑哪一层？</strong></p>
+<p><strong>按怀疑度排序</strong>：</p>
+<ol>
+<li><strong>L7 LB idle timeout</strong>：ALB/NLB/CloudFront 默认 idle timeout 60s 或 30s——SSE 长连接超时被中断。改：将 idle timeout 调到 600s+ 或开 keepalive</li>
+<li><strong>Envoy/Istio sidecar <code>stream_idle_timeout</code></strong>：默认 5min 但有些 conf 是 30s。改：<code>stream_idle_timeout: 0</code>（无限）或 600s</li>
+<li><strong>HTTP/2 PING idle</strong>：HTTP/2 默认 keepalive 没启用 → 中间路由器 idle 后断</li>
+<li><strong>CNI 网络（如 Cilium）的 conn track timeout</strong>：流量小时 conn 被 GC</li>
+</ol>
+<p>排查命令：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 检查 idle 配置</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>gateway<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>timeout
+<span class="c1"># 看 access log</span>
+kubectl<span class="w"> </span>logs<span class="w"> </span>&lt;envoy-pod&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">"stream_idle"</span>
+</code></pre></div>
+
+<hr />
+<p><strong>3. AIBrix "KV Cache Event Synchronization" 通过什么通道？</strong></p>
+<p><strong>通过 vLLM 的 stat / metric callback + Redis pubsub</strong>（或类似消息总线）。具体：</p>
+<ul>
+<li>vLLM 启动时注册一个 callback：每当 prefix cache hit/miss/evict 时，把事件（含 hash / pod id / token 范围）push 到 Redis stream</li>
+<li>AIBrix Gateway 订阅这个 stream → 维护全局"prompt hash → pod"映射</li>
+<li>路由时查这个映射，决定打哪个 pod（命中已有 cache 的 pod）</li>
+</ul>
+<p><strong>为什么这样设计</strong>：vLLM 自身没有跨 pod cache 同步能力；外部 sidecar/agent 监听 metric 也行但延迟高；直接事件流是最快的"几乎实时"同步。</p>
+<p>注意：这不是 vLLM 内置功能，是 AIBrix 在 vLLM 之上加的中间件。</p>
+<hr />
+<p><strong>4. 跨 region 共享 prefix cache 为什么不可行？冷启动新 region cache hit rate 曲线？</strong></p>
+<p><strong>不可行的原因</strong>：</p>
+<ul>
+<li>KV cache 物理上在 GPU HBM，跨 region 传输延迟 100ms+</li>
+<li>prefix cache 命中后还要从 cache 加载 KV 数据到本地 HBM，跨 region 加载比 recompute 还慢</li>
+<li>网络成本：每 GB cache 跨 region 传输 ~$0.02-0.09，prefix cache 几 GB 反复传 → 不经济</li>
+</ul>
+<p><strong>冷启动新 region 的 cache hit rate 曲线</strong>（典型）：</p>
+<div class="codehilite"><pre><span></span><code>hit rate
+  ↑
+1.0│
+   │
+0.8│                                ╱───── 平台期
+   │                          ╱───
+0.5│                    ╱────
+   │              ╱────
+0.2│        ╱────
+   │   ╱───
+  0└───┴─────────────────────────→ 时间
+   T=0  30min  2h    8h   24h
+</code></pre></div>
+
+<ul>
+<li><strong>T=0</strong>：cache 完全空，命中率 0%</li>
+<li><strong>0-30min</strong>：第一批用户进来，建立 cache，命中率快速上升</li>
+<li><strong>30min-8h</strong>：长尾用户陆续触发新 prefix，命中率缓慢上升</li>
+<li><strong>稳态</strong>：跟原 region 类似（如果 workload 一致），8-24h 内达到 60-80%</li>
+</ul>
+<p><strong>实战建议</strong>：冷启动新 region 时<strong>手动 warm up</strong>——把已知热门 system prompt / few-shot 模板批量发一遍预热 cache，能把"达到稳态"时间从 8h 压到 30min。</p>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>下一节：<a href="./02-smart-routing-and-load-balancing.html"><code>02-smart-routing-and-load-balancing.md</code></a>（把"Smart Router"这一层拆开看）</li>
+<li>想看源码：<code>vllm/entrypoints/</code> 看单机入口、<code>vllm/v1/engine/</code> 看 EngineCore/Worker 拆分</li>
+<li>想动手：<a href="../07-hands-on/01-setup.html"><code>07-hands-on/01-setup.md</code></a> 先把单机 demo 跑通再上 K8s</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://github.com/vllm-project/production-stack/issues/855">vLLM Production Stack 2026 Roadmap</a></li>
+<li><a href="https://llm-d.ai/">llm-d: Kubernetes-Native Distributed LLM Inference</a></li>
+<li><a href="https://aibrix.github.io/posts/2025-02-20-vllm-control-plane/">Introducing AIBrix: Cost-Effective and Scalable Control Plane for vLLM</a></li>
+<li><a href="https://introl.com/blog/vllm-production-deployment-inference-serving-architecture">vLLM Production Deployment Architecture</a></li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../07-hands-on/04-profiling-and-debugging.html"><span class="label">上一篇</span><span class="title">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</span></a>
+<a class="next" href="../08-production-deployment/02-smart-routing-and-load-balancing.html"><span class="label">下一篇</span><span class="title">02. 请求调度与负载均衡：LLM 专属的"智能路由"</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

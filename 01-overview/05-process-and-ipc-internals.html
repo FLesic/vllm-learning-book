@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>05. 进程模型与进程间通信内部机制 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li class="current"><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part I</span> · 入门与架构</div>
+      <div class="reading-time">预计阅读 14 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="05">05. 进程模型与进程间通信内部机制</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 想读 vLLM 源码 / 做生产部署调优，并把 vLLM 进程间通信讲到 socket 类型与零拷贝细节的读者。</p>
+<p><strong>前置阅读：</strong> <a href="02-architecture.html"><code>02-architecture.md</code></a> §1-2（三层进程拓扑与核心数据契约）；最好顺手扫一眼 <a href="04-project-structure.html"><code>04-project-structure.md</code></a> §3.1 / §3.4，知道 <code>vllm/v1/engine/</code> 与 <code>vllm/v1/executor/</code> 各放什么。</p>
+<p><strong>耗时：</strong> 约 25 分钟（含 §2-5 几个细节追源码）。</p>
+<p><strong>学完能：</strong>
+1. 在白板上画出"shell → API Server → EngineCore → Worker × N"的进程生成顺序，并说出每跳是 fork 还是 spawn、为什么。
+2. 区分<strong>控制平面</strong>（ZMQ ROUTER/DEALER + PULL/PUSH + msgpack）与<strong>数据平面</strong>（shared-memory MessageQueue + PEP 574 OOB 零拷贝）的分界点。
+3. 解释 vLLM Worker 为什么必须用进程、而不是线程；fork vs spawn 在 CUDA 上下文初始化顺序上的坑。
+4. 把三种部署形态（Inproc / MPClient / Ray Distributed）与"单机 offline / 单机 serve / 跨机 serve"三种工作模式对上号。</p>
+</blockquote>
+<p>这一篇是 <a href="02-architecture.html"><code>02-architecture.md</code></a> 的<strong>深度续篇</strong>。读完 <code>02</code> 知道 vLLM 有三层进程后，本篇回答"它们到底怎么生出来、怎么交换数据、为什么这么设计"。</p>
+<hr />
+<h2 id="1">1. 一图重温：进程拓扑</h2>
+<pre class="mermaid">flowchart TB
+    subgraph API["API Server 进程（FastAPI / uvloop）"]
+        APIcli["vllm/entrypoints/cli/serve.py:main()&lt;br/&gt;--api-server-count 控制副本数"]
+        AsyncMP["AsyncMPClient&lt;br/&gt;core_client.py:460"]
+    end
+    subgraph ECP["EngineCore 进程"]
+        Launcher["launch_core_engines&lt;br/&gt;engine/utils.py:994"]
+        ECProc["EngineCoreProc.run_engine_core&lt;br/&gt;engine/core.py:1087"]
+        Exec["MultiprocExecutor / RayExecutor"]
+    end
+    subgraph WP["Worker 进程 × N（每 GPU 一个）"]
+        WMain["WorkerProc.worker_main&lt;br/&gt;multiproc_executor.py:792"]
+        Runner["GPUWorker → GPUModelRunner"]
+    end
+
+    APIcli --&gt; AsyncMP
+    AsyncMP -- "①控制平面&lt;br/&gt;ZMQ + msgpack" --&gt; ECProc
+    Launcher --&gt; ECProc --&gt; Exec
+    Exec -- "②数据平面&lt;br/&gt;shared-memory MessageQueue" --&gt; WMain
+    WMain --&gt; Runner
+
+    classDef api fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef engine fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef worker fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class APIcli,AsyncMP api;
+    class Launcher,ECProc,Exec engine;
+    class WMain,Runner worker;</pre>
+<p>下面三件事：① <strong>进程怎么 spawn 出来的</strong>；② <strong>控制平面</strong>（ZMQ）；③ <strong>数据平面</strong>（共享内存）。</p>
+<hr />
+<h2 id="2">2. 进程是怎么"生"出来的</h2>
+<p>按时间顺序追：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>顺序</th>
+<th>谁来 spawn</th>
+<th>用什么方式</th>
+<th>目标进程</th>
+<th>关键代码位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①</td>
+<td>shell 启动 <code>vllm serve &lt;model&gt;</code></td>
+<td>OS 直接 exec</td>
+<td><strong>API Server 主进程</strong></td>
+<td><code>vllm/entrypoints/cli/serve.py:main</code> → <code>api_server.py:run_server</code></td>
+</tr>
+<tr>
+<td>②</td>
+<td>API Server 进程内的 client 构造</td>
+<td><code>multiprocessing.Process(target=EngineCoreProc.run_engine_core)</code></td>
+<td><strong>EngineCore 子进程</strong></td>
+<td><code>vllm/v1/engine/utils.py:144</code> 起 <code>context.Process(...)</code>、line 189 <code>proc.start()</code></td>
+</tr>
+<tr>
+<td>③</td>
+<td>EngineCore 进程内 <code>Executor._init_executor</code></td>
+<td><code>multiprocessing.Process(target=WorkerProc.worker_main, daemon=True)</code> × N</td>
+<td><strong>Worker 子进程</strong> × N</td>
+<td><code>vllm/v1/executor/multiproc_executor.py:676</code>、line 687 <code>proc.start()</code></td>
+</tr>
+</tbody>
+</table>
+<p>每个 Worker 进程在自己进程里 <code>torch.cuda.set_device(local_rank)</code> 绑一张 GPU，然后通过 NCCL 加入 TP 通信组。换句话说：</p>
+<ul>
+<li><strong>每张 GPU = 1 个 Worker 进程</strong>（不是线程，更不是 CUDA stream）</li>
+<li><strong>EngineCore 进程只有 1 个</strong>（DP 模式下每个 DP rank 一个）</li>
+<li><strong>API Server 进程可以多个</strong>（<code>--api-server-count</code>，DP 时默认与 DP rank 数对齐做前端 LB）</li>
+</ul>
+<h3 id="21">2.1 为什么用进程而不是线程？</h3>
+<p>三条硬约束：</p>
+<ol>
+<li><strong>Python GIL</strong>：CPython 单进程同一时刻只能有一个线程在跑 Python bytecode。Scheduler、Sampler 这些 CPU heavy 的 Python 代码用多线程并行不了。</li>
+<li><strong>CUDA context 隔离</strong>：每个进程独立持有 CUDA context、显存池、stream。多线程共享 context 容易踩 OOM 重入或同步原语 bug。</li>
+<li><strong>故障域</strong>：Worker 进程崩了不污染 EngineCore，进程级清理远比线程级稳妥。</li>
+</ol>
+<h3 id="22-fork-spawn">2.2 fork 还是 spawn？</h3>
+<p>由 <code>get_mp_context()</code> 决定（<code>vllm/utils/system_utils.py</code>）：</p>
+<ul>
+<li><strong>Linux 默认 fork</strong>：快，子进程共享父进程内存视图（COW）。坑：CUDA 上下文不能在父进程初始化后再 fork</li>
+<li><strong>macOS / Windows / spawn</strong>：起一个干净的 Python，重新加载所有模块。慢但安全</li>
+</ul>
+<p>vLLM 启动顺序刻意安排成"先 fork 进程，再 init CUDA"，正是为兼容 fork。</p>
+<hr />
+<h2 id="3">3. 三种部署形态对照</h2>
+<pre class="mermaid">flowchart TB
+    subgraph A["形态 A · Inproc（离线 LLM, 默认）"]
+        A1["Python 主进程&lt;br/&gt;LLM(...) → InprocClient&lt;br/&gt;core_client.py:274"]
+        A2["EngineCore 同进程内嵌"]
+        A3["Worker 子进程 × N&lt;br/&gt;(MultiprocExecutor 仍 fork)"]
+        A1 --- A2 --&gt; A3
+    end
+    subgraph B["形态 B · MPClient（vllm serve, 默认）"]
+        B1["API Server 进程"]
+        B2["EngineCore 子进程&lt;br/&gt;(launch_core_engines 拉起)"]
+        B3["Worker 子进程 × N"]
+        B1 -- ZMQ --&gt; B2 -- 共享内存 --&gt; B3
+    end
+    subgraph C["形态 C · Ray Distributed（跨机器）"]
+        C1["API Server 进程"]
+        C2["EngineCore 子进程"]
+        C3["Ray Worker actor × N&lt;br/&gt;(可跨节点)"]
+        C1 -- ZMQ --&gt; C2 -- Ray RPC --&gt; C3
+    end
+
+    classDef a fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef b fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef c fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class A1,A2,A3 a;
+    class B1,B2,B3 b;
+    class C1,C2,C3 c;</pre>
+<table class="three-line">
+<thead>
+<tr>
+<th>形态</th>
+<th>client 类</th>
+<th>EngineCore</th>
+<th>Worker</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A · Inproc</td>
+<td><code>InprocClient</code>（<code>core_client.py:274</code>）</td>
+<td>不 fork，跟 LLM 同进程</td>
+<td>仍 fork（除非 TP=1 单卡）</td>
+</tr>
+<tr>
+<td>B · MPClient</td>
+<td><code>AsyncMPClient</code> / <code>SyncMPClient</code></td>
+<td>由 <code>launch_core_engines</code> fork</td>
+<td><code>MultiprocExecutor</code> fork</td>
+</tr>
+<tr>
+<td>C · Ray</td>
+<td>同 B，但 Executor 换成 <code>RayDistributedExecutor</code></td>
+<td>同 B</td>
+<td>Ray actor，可跨机器</td>
+</tr>
+</tbody>
+</table>
+<p><code>LLM("model").generate(...)</code> 默认进入形态 A；<code>vllm serve ...</code> 默认形态 B；显式 <code>--distributed-executor-backend=ray</code> 或 PP 跨机才进入形态 C。</p>
+<hr />
+<h2 id="4-api-server-enginecorezmq-msgpack">4. 控制平面：API Server ↔ EngineCore（ZMQ + msgpack）</h2>
+<p><strong>频率</strong>：每个 HTTP 请求触发 1 次 enqueue + 流式回传若干 token。控制平面节奏，吞吐够用即可。</p>
+<h3 id="41-socket">4.1 Socket 类型</h3>
+<p><code>vllm/v1/engine/core_client.py:511</code> 起，<code>MPClient.__init__</code> 同时建两条 socket：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># client（API Server）侧</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">input_socket</span>  <span class="o">=</span> <span class="n">make_zmq_socket</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="n">input_address</span><span class="p">,</span>  <span class="n">zmq</span><span class="o">.</span><span class="n">ROUTER</span><span class="p">,</span> <span class="n">bind</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># line 511</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">output_socket</span> <span class="o">=</span> <span class="n">make_zmq_socket</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="n">output_address</span><span class="p">,</span> <span class="n">zmq</span><span class="o">.</span><span class="n">PULL</span><span class="p">)</span>               <span class="c1"># line 519</span>
+</code></pre></div>
+
+<table class="three-line">
+<thead>
+<tr>
+<th>方向</th>
+<th>client（API）侧</th>
+<th>engine 侧</th>
+<th>为什么这样配</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API → Engine（请求下发）</td>
+<td><code>ROUTER</code>（bind）</td>
+<td><code>DEALER</code>（connect）</td>
+<td>多 API server 副本时 ROUTER 能区分对端</td>
+</tr>
+<tr>
+<td>Engine → API（输出回传）</td>
+<td><code>PULL</code>（connect）</td>
+<td><code>PUSH</code>（bind）</td>
+<td>多个 Engine（DP）可以 push 给同一个 PULL，天然多路收单</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-socket-ipc-tcp">4.2 Socket 端点：IPC 还是 TCP</h3>
+<p><code>vllm/utils/network_utils.py</code> 统一封装：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>行号</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>network_utils.py:143</code></td>
+<td><code>return f"ipc://{base_rpc_path}/{uuid4()}"</code> —— 单机默认 Unix domain socket</td>
+</tr>
+<tr>
+<td><code>network_utils.py:136-138</code></td>
+<td><code>return f"tcp://{ip}:{port}"</code> —— 跨机退化到 TCP</td>
+</tr>
+<tr>
+<td><code>network_utils.py:284</code></td>
+<td><code>def make_zmq_socket(...)</code> —— 统一工厂</td>
+</tr>
+</tbody>
+</table>
+<p>IPC 省一次内核协议栈，单机延迟亚毫秒级。</p>
+<h3 id="43-msgspecmsgpack">4.3 序列化：msgspec.msgpack</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># vllm/v1/engine/core_client.py:18</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">msgspec.msgpack</span>
+
+<span class="c1"># line 673：启动握手</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">EngineCoreReadyResponse</span><span class="p">)</span>
+
+<span class="c1"># line 1217 / 1249 / 1261 / 1306 / 1625 / 1683：各种控制消息</span>
+<span class="n">decoded</span>   <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+<span class="n">scale_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<p>更完整的请求 / 输出编解码用 <code>vllm/v1/serial_utils.py:136 MsgpackEncoder</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">MsgpackEncoder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">enc_hook</span><span class="p">)</span>   <span class="c1"># line 156</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">encode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">bytestr</span><span class="p">]:</span>
+        <span class="n">bufs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>                       <span class="c1"># line 171</span>
+        <span class="o">...</span>
+</code></pre></div>
+
+<p><strong>为什么 msgspec 而不是 pickle / protobuf？</strong></p>
+<ul>
+<li>比 pickle <strong>快 5-10 ×、安全</strong>（不能反序列化任意代码）</li>
+<li>比 protobuf <strong>零 schema</strong>（不用维护 <code>.proto</code>）</li>
+<li>msgspec 的 C 实现对 <code>dataclass</code> 几乎零成本</li>
+<li>对几 KB 的控制消息完全够用</li>
+</ul>
+<hr />
+<h2 id="5-enginecore-workershared-memory-messagequeue">5. 数据平面：EngineCore ↔ Worker（shared-memory MessageQueue）</h2>
+<p><strong>频率</strong>：每个推理 step 走一次（大 batch 下 100+ Hz）。完全不能用 ZMQ。</p>
+<h3 id="51-messagequeue-shmringbuffer">5.1 核心类：MessageQueue + ShmRingBuffer</h3>
+<p><code>vllm/distributed/device_communicators/shm_broadcast.py:358</code> 的 <code>MessageQueue</code> 底层是基于 <code>multiprocessing.shared_memory.SharedMemory</code> 的环形缓冲区：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>行号</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shm_broadcast.py:209</code></td>
+<td><code>class ShmRingBuffer</code> —— 共享内存环形缓冲区</td>
+</tr>
+<tr>
+<td><code>shm_broadcast.py:279</code></td>
+<td><code>self.shared_memory = shared_memory.SharedMemory(...)</code> —— writer 端创建段</td>
+</tr>
+<tr>
+<td><code>shm_broadcast.py:297</code></td>
+<td>worker 端 <code>shared_memory.SharedMemory(name=name)</code> —— attach 同一段</td>
+</tr>
+<tr>
+<td><code>shm_broadcast.py:358</code></td>
+<td><code>class MessageQueue</code> —— 一写多读的发布订阅封装</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-enginecore-worker-attach">5.2 EngineCore 端 / Worker 端 attach</h3>
+<p>EngineCore 端（<code>vllm/v1/executor/multiproc_executor.py:150</code>）：</p>
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">rpc_broadcast_mq</span> <span class="o">=</span> <span class="n">MessageQueue</span><span class="p">(</span>           <span class="c1"># line 150</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">world_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_world_size</span><span class="p">,</span>
+    <span class="n">max_chunk_bytes</span><span class="o">=</span><span class="n">max_chunk_bytes</span><span class="p">,</span>
+    <span class="n">connect_ip</span><span class="o">=</span><span class="n">mq_connect_ip</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">scheduler_output_handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rpc_broadcast_mq</span><span class="o">.</span><span class="n">export_handle</span><span class="p">()</span>  <span class="c1"># line 156</span>
+</code></pre></div>
+
+<p>Worker 端（<code>multiproc_executor.py:551</code>）：</p>
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">rpc_broadcast_mq</span> <span class="o">=</span> <span class="n">MessageQueue</span><span class="o">.</span><span class="n">create_from_handle</span><span class="p">(</span>  <span class="c1"># line 551</span>
+    <span class="n">rpc_broadcast_mq_handle</span><span class="p">,</span> <span class="n">rank</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>每步 forward 前广播：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># multiproc_executor.py:373</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">rpc_broadcast_mq</span><span class="o">.</span><span class="n">enqueue</span><span class="p">((</span><span class="n">send_method</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="n">output_rank</span><span class="p">))</span>
+</code></pre></div>
+
+<p>各 worker 在 busy loop 里 <code>mq.dequeue(...)</code>，跑完通过 <code>response_mqs[rank].enqueue(...)</code> 回结果（<code>:386</code> 反向 dequeue）。</p>
+<h3 id="53-trickpep-574-oob">5.3 关键 trick：PEP 574 OOB 零拷贝</h3>
+<p><code>shm_broadcast.py:720 enqueue</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">enqueue</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">oob_callback</span><span class="p">(</span><span class="n">buf</span><span class="p">:</span> <span class="n">PickleBuffer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">raw_buf</span> <span class="o">=</span> <span class="n">buf</span><span class="o">.</span><span class="n">raw</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw_buf</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">:</span>     <span class="c1"># &lt; 1 MiB 内联</span>
+            <span class="k">return</span> <span class="kc">True</span>                     <span class="c1"># line 730</span>
+        <span class="n">all_buffers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">raw_buf</span><span class="p">)</span>         <span class="c1"># ≥ 1 MiB 走 OOB</span>
+        <span class="k">return</span> <span class="kc">False</span>                        <span class="c1"># line 734</span>
+
+    <span class="n">all_buffers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+        <span class="n">obj</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">,</span>
+        <span class="n">buffer_callback</span><span class="o">=</span><span class="n">oob_callback</span><span class="p">,</span>       <span class="c1"># line 737</span>
+    <span class="p">)</span>
+    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">acquire_write</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span> <span class="k">as</span> <span class="n">buf</span><span class="p">:</span>           <span class="c1"># line 749</span>
+        <span class="k">for</span> <span class="n">buffer</span> <span class="ow">in</span> <span class="n">all_buffers</span><span class="p">:</span>
+            <span class="n">buf</span><span class="p">[</span><span class="n">offset</span><span class="p">:</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">buffer</span>                   <span class="c1"># line 758 直接写共享内存</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_spin_condition</span><span class="o">.</span><span class="n">notify</span><span class="p">()</span>                      <span class="c1"># line 760</span>
+</code></pre></div>
+
+<p>配合 <code>pickle.HIGHEST_PROTOCOL</code> 的 <strong>PickleBuffer</strong>（<a href="https://peps.python.org/pep-0574/">PEP 574</a>）特性——大 tensor / numpy 数组<strong>不被 pickle 复制</strong>，指针塞进 OOB buffer 列表，<strong>零拷贝</strong>写入共享内存。dequeue 端 <code>pickle.loads(buffers=...)</code>（<code>shm_broadcast.py:783</code>）直接拿到内存视图，同样零拷贝。</p>
+<hr />
+<h2 id="6-gpu-worker-workernccl">6. GPU 间通信：Worker ↔ Worker（NCCL）</h2>
+<p>Worker 内部跑 TP forward 时需要每层 AllReduce、AllGather 等集合通信。这不走 IPC，而是 GPU-to-GPU 的硬件层：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>拓扑</th>
+<th>协议</th>
+<th>带宽（H100 量级）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>同机 NVLink</td>
+<td>NCCL over NVSwitch</td>
+<td>900 GB/s</td>
+</tr>
+<tr>
+<td>跨机 InfiniBand / RoCE</td>
+<td>NCCL over IB Verbs</td>
+<td>400 Gbps</td>
+</tr>
+<tr>
+<td>跨机 Ethernet</td>
+<td>NCCL over Sockets</td>
+<td>25-100 Gbps（慢一个量级）</td>
+</tr>
+</tbody>
+</table>
+<p>NCCL 通信组初始化：<code>vllm/distributed/parallel_state.py</code>。具体 AllReduce 怎么插入到每层 forward 见 <code>05-distributed/01-tp-pp-ep.md</code>。</p>
+<hr />
+<h2 id="7">7. 一图总结：三条通信路径的取舍</h2>
+<pre class="mermaid">flowchart LR
+    subgraph CP["控制平面 · 几 Hz · 几 KB"]
+        API["API Server"]
+        EC["EngineCore"]
+    end
+    subgraph DP["数据平面 CPU · 100+ Hz · KB-MB"]
+        EC2["EngineCore&lt;br/&gt;rpc_broadcast_mq writer"]
+        W1["Worker 0"]
+        W2["Worker 1"]
+        Wn["Worker N"]
+    end
+    subgraph GP["GPU 平面 · 每层 1-2 次 · MB-GB"]
+        W1g["Worker 0 GPU"]
+        W2g["Worker 1 GPU"]
+        Wng["Worker N GPU"]
+    end
+
+    API -- "ROUTER/DEALER&lt;br/&gt;+ msgspec.msgpack" --&gt; EC
+    EC -- "PUSH/PULL&lt;br/&gt;+ msgspec.msgpack" --&gt; API
+    EC2 -- "shared-memory ring&lt;br/&gt;+ PickleBuffer OOB 零拷贝" --&gt; W1
+    EC2 --&gt; W2
+    EC2 --&gt; Wn
+    W1g -- "NCCL AllReduce 双向&lt;br/&gt;NVLink / IB" --&gt; W2g
+    W2g --&gt; Wng
+
+    classDef cp fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef dp fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    classDef gp fill:#fee2e2,stroke:#b91c1c,color:#1a1f29;
+    class API,EC cp;
+    class EC2,W1,W2,Wn dp;
+    class W1g,W2g,Wng gp;</pre>
+<p><strong>关键数字对照</strong>：</p>
+<table class="three-line">
+<thead>
+<tr>
+<th>维度</th>
+<th>控制平面（ZMQ + msgpack）</th>
+<th>数据平面（shared-memory）</th>
+<th>GPU 平面（NCCL）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>频率</td>
+<td>每请求 1-N 次（API 节奏）</td>
+<td>每 step 1 次（100+ Hz）</td>
+<td>每层 forward 1-2 次（kHz）</td>
+</tr>
+<tr>
+<td>消息大小</td>
+<td>几 KB</td>
+<td>10s KB ~ MB</td>
+<td>MB ~ GB</td>
+</tr>
+<tr>
+<td>序列化代价</td>
+<td>μs 级（msgpack）</td>
+<td>几乎零（指针 + memcpy）</td>
+<td>零（已在 GPU 显存）</td>
+</tr>
+<tr>
+<td>跨机器</td>
+<td>自动退化到 TCP</td>
+<td>跨机不可用</td>
+<td>NCCL over IB / Ethernet</td>
+</tr>
+<tr>
+<td>容错</td>
+<td>client 重连即可</td>
+<td>writer 崩 = 整组阻塞</td>
+<td>任一卡崩 = 整组崩</td>
+</tr>
+</tbody>
+</table>
+<p>如果数据平面也用 ZMQ：每秒上百次 KB-MB 级 IPC + msgpack 编解码会吃 5-15% CPU；大 batch 下 SchedulerOutput 含的 GPU tensor 还要序列化。shared-memory + OOB 零拷贝完全规避这两条。</p>
+<hr />
+<h2 id="8-vllm-serve-llama-3-70b-tensor-parallel-size-8">8. 一个具体例子：<code>vllm serve Llama-3-70B --tensor-parallel-size 8</code></h2>
+<p>跑起来后 <code>ps -ef | grep vllm</code> 看到的进程：</p>
+<div class="codehilite"><pre><span></span><code>1 主进程       vllm serve  ...                   ← API Server (FastAPI/uvloop)
+└─ 1 子进程    EngineCore                          ← Scheduler + MultiprocExecutor
+   ├─ 1 子进程  VllmWorker-0  (CUDA_VISIBLE_DEVICES=0)
+   ├─ 1 子进程  VllmWorker-1  (CUDA_VISIBLE_DEVICES=1)
+   ├─ ...
+   └─ 1 子进程  VllmWorker-7  (CUDA_VISIBLE_DEVICES=7)
+</code></pre></div>
+
+<p>共 <strong>1 + 1 + 8 = 10 个进程</strong>。8 个 worker 用 NCCL 形成同一个 TP=8 通信组。</p>
+<p>开 DP=2 时进程数翻倍 + 多一个 coordinator：</p>
+<div class="codehilite"><pre><span></span><code>1 主进程       vllm serve  ...
+├─ 1 子进程    EngineCore_DP0
+│   └─ × 8 Worker
+├─ 1 子进程    EngineCore_DP1
+│   └─ × 8 Worker
+└─ 1 子进程    DPCoordinator                       ← 跨 DP 协调
+</code></pre></div>
+
+<hr />
+<h2 id="9">9. 非显然的工程结论</h2>
+<ul>
+<li><strong>API Server 是无状态的</strong>——本质是 ZMQ client，崩了只丢正在排队的 HTTP 连接，不影响 EngineCore 里的 KV cache。生产用 <code>--api-server-count &gt; 1</code> 多副本 + LB 即可水平扩。</li>
+<li><strong>EngineCore 是有状态单点</strong>——<code>Scheduler.running</code>、<code>BlockPool</code> 都活在它进程内。崩了等同于该实例所有 in-flight 请求丢失。K8s 里 <code>EngineCore + Worker</code> 必须用 <code>LeaderWorkerSet</code> 整组重启。</li>
+<li><strong>Worker 之间对等，但只有 rank 0 是 driver</strong>——<code>is_driver_worker=True</code>（<code>multiproc_executor.py:644</code> 参数）的那个负责收 Scheduler 输出并广播给其余 worker，其余是 NCCL 同步执行者。</li>
+<li><strong>进程粒度的资源隔离</strong>：每个 Worker 进程独立持有显存、CUDA stream、CUDA Graph capture buffer。这就是为什么 LLM 部署要避免 sidecar、避免共卡——一旦同卡再起别的 GPU 进程，Worker 的显存测量与 Graph 都可能错乱。</li>
+<li><strong>shared-memory 不能跨机器</strong>——所以跨节点 PP / EP 必须改走 Ray actor（形态 C）或 NCCL。控制平面的 ZMQ 跨机自动降 TCP，但数据平面没这条退路。</li>
+</ul>
+<hr />
+<h2 id="10">10. 代码索引（贴墙速查）</h2>
+<table class="three-line">
+<thead>
+<tr>
+<th>用途</th>
+<th>文件 : 行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>进程 spawn</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>API Server 入口</td>
+<td><code>vllm/entrypoints/cli/serve.py:main</code> → <code>entrypoints/openai/api_server.py:run_server</code></td>
+</tr>
+<tr>
+<td>EngineCore 入口（子进程）</td>
+<td><code>vllm/v1/engine/core.py:1087 run_engine_core</code></td>
+</tr>
+<tr>
+<td>EngineCore spawn 点</td>
+<td><code>vllm/v1/engine/utils.py:144,189</code></td>
+</tr>
+<tr>
+<td>Worker 入口（子进程）</td>
+<td><code>vllm/v1/executor/multiproc_executor.py:792 worker_main</code></td>
+</tr>
+<tr>
+<td>Worker spawn 点</td>
+<td><code>multiproc_executor.py:644,676,687</code></td>
+</tr>
+<tr>
+<td>Inproc 客户端</td>
+<td><code>vllm/v1/engine/core_client.py:274 InprocClient</code></td>
+</tr>
+<tr>
+<td>MP 客户端基类</td>
+<td><code>vllm/v1/engine/core_client.py:460 MPClient</code></td>
+</tr>
+<tr>
+<td><strong>控制平面（ZMQ + msgpack）</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>ROUTER socket（API 入站）</td>
+<td><code>vllm/v1/engine/core_client.py:511</code></td>
+</tr>
+<tr>
+<td>PULL socket（API 出站）</td>
+<td><code>vllm/v1/engine/core_client.py:519</code></td>
+</tr>
+<tr>
+<td><code>make_zmq_socket</code> 工厂</td>
+<td><code>vllm/utils/network_utils.py:284</code></td>
+</tr>
+<tr>
+<td>IPC vs TCP endpoint 选</td>
+<td><code>vllm/utils/network_utils.py:136-147</code></td>
+</tr>
+<tr>
+<td>msgspec 引入</td>
+<td><code>vllm/v1/engine/core_client.py:18</code></td>
+</tr>
+<tr>
+<td><code>MsgpackEncoder</code></td>
+<td><code>vllm/v1/serial_utils.py:136,156,171</code></td>
+</tr>
+<tr>
+<td>控制消息 encode 实例</td>
+<td><code>core_client.py:1249,1261,1306,1625,1683</code></td>
+</tr>
+<tr>
+<td><strong>数据平面（共享内存）</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><code>MessageQueue</code> 类</td>
+<td><code>vllm/distributed/device_communicators/shm_broadcast.py:358</code></td>
+</tr>
+<tr>
+<td><code>ShmRingBuffer</code></td>
+<td><code>shm_broadcast.py:209</code></td>
+</tr>
+<tr>
+<td><code>SharedMemory</code> 创建</td>
+<td><code>shm_broadcast.py:279</code></td>
+</tr>
+<tr>
+<td><code>SharedMemory</code> attach（worker 端）</td>
+<td><code>shm_broadcast.py:297</code></td>
+</tr>
+<tr>
+<td><code>MessageQueue.enqueue</code></td>
+<td><code>shm_broadcast.py:720</code></td>
+</tr>
+<tr>
+<td><code>MessageQueue.dequeue</code></td>
+<td><code>shm_broadcast.py:765</code></td>
+</tr>
+<tr>
+<td>OOB 零拷贝 callback</td>
+<td><code>shm_broadcast.py:726-734</code></td>
+</tr>
+<tr>
+<td><code>rpc_broadcast_mq</code> 创建</td>
+<td><code>multiproc_executor.py:150</code></td>
+</tr>
+<tr>
+<td><code>export_handle</code> 传子进程</td>
+<td><code>multiproc_executor.py:156</code></td>
+</tr>
+<tr>
+<td>Worker 端 <code>create_from_handle</code></td>
+<td><code>multiproc_executor.py:551</code></td>
+</tr>
+<tr>
+<td><code>enqueue</code> SchedulerOutput</td>
+<td><code>multiproc_executor.py:373</code></td>
+</tr>
+<tr>
+<td><code>dequeue</code> Worker response</td>
+<td><code>multiproc_executor.py:386</code></td>
+</tr>
+<tr>
+<td><strong>GPU 平面（NCCL）</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>进程组初始化</td>
+<td><code>vllm/distributed/parallel_state.py</code></td>
+</tr>
+<tr>
+<td>Worker TP forward 的 AllReduce</td>
+<td><code>vllm/distributed/communication_op.py</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>vLLM 的三层进程都由<strong>显式 spawn</strong> 出来：shell 起 API Server，API Server 起 EngineCore，EngineCore 的 Executor 再起 N 个 Worker。每张 GPU 对应一个独立 Worker 进程（不是线程、不是 stream）。</li>
+<li>用进程的三条硬约束：<strong>Python GIL</strong>、<strong>CUDA context 隔离</strong>、<strong>故障域</strong>。fork vs spawn 由 <code>get_mp_context()</code> 决定，启动顺序刻意安排成"先 fork 再 init CUDA"以兼容 fork。</li>
+<li>控制平面 = <strong>ZMQ ROUTER/DEALER + PULL/PUSH + msgpack</strong>；数据平面 = <strong>shared-memory MessageQueue + PEP 574 OOB 零拷贝</strong>。控制小、可跨机；数据大、必须同机。</li>
+<li>三种部署形态：<strong>Inproc</strong>（离线 LLM 默认）/ <strong>MPClient</strong>（<code>vllm serve</code> 默认）/ <strong>Ray Distributed</strong>（跨机器）；后两种共用同一套 ZMQ 控制平面。</li>
+<li>工程结论："API Server 无状态、EngineCore 有状态、Worker 对等但 rank 0 是 driver"——决定了 K8s 上 EngineCore + Worker 必须 <code>LeaderWorkerSet</code> 整组重启。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<blockquote>
+<p>不用照着原文复述，重点是把现象、机制、源码入口和取舍讲顺。</p>
+</blockquote>
+<p><strong>1. <code>vllm serve &lt;model&gt; --tensor-parallel-size 4</code> 启动后有几个进程？父子关系？</strong></p>
+<div class="codehilite"><pre><span></span><code>1. vllm serve (主进程, API Server)                       ← shell exec 启动
+   └── 2. EngineCore 子进程                              ← multiprocessing.Process
+       ├── 3. Worker-0 子进程 (CUDA_VISIBLE_DEVICES=0)
+       ├── 4. Worker-1 子进程 (CUDA_VISIBLE_DEVICES=1)
+       ├── 5. Worker-2 子进程 (CUDA_VISIBLE_DEVICES=2)
+       └── 6. Worker-3 子进程 (CUDA_VISIBLE_DEVICES=3)
+</code></pre></div>
+
+<p>总共 <strong>6 个进程</strong>：1 API Server + 1 EngineCore + 4 Worker。</p>
+<p>补充细节：</p>
+<ul>
+<li>若 <code>--api-server-count N</code>，API Server 进程会有 N 个</li>
+<li>若 <code>--data-parallel-size D</code>，EngineCore + Workers 整组 ×D</li>
+<li>若用 Ray executor，Worker 是 Ray actor 而非本地子进程</li>
+</ul>
+<hr />
+<p><strong>2. <code>multiprocessing.Process(daemon=True)</code> 与 CUDA fork 冲突，vLLM 怎么绕？</strong></p>
+<p><strong>冲突原因</strong>：</p>
+<ul>
+<li><code>daemon=True</code> 进程会随父进程退出强制 kill，不允许有子进程</li>
+<li><code>fork</code> 启动方式在子进程里复制父进程的 CUDA context，<strong>CUDA context 不支持 fork after init</strong>——父进程已经 <code>torch.cuda.init()</code>、子进程一摸 GPU 就 crash 或死锁</li>
+<li>三者撞在一起：daemon Worker 不能再 fork 出 helper、CUDA 又禁 fork</li>
+</ul>
+<p><strong>vLLM 的解法</strong>：</p>
+<ol>
+<li><strong>强制 spawn 启动方式</strong>：<code>multiprocessing.get_context("spawn")</code>，spawn 不复制 CUDA context，子进程从干净状态启动后自己 <code>cuda.init()</code></li>
+<li><strong>顺序控制</strong>：API Server 进程<strong>绝不</strong>触 CUDA（只做 HTTP / tokenize / ZMQ）；EngineCore 进程在 spawn 出 Worker 后才允许触 GPU；Worker 进程一启动立即绑 device</li>
+<li><strong>Worker 用 <code>daemon=False</code></strong>：Worker 内部还要起辅助线程（NCCL watchdog 等），不能 daemon</li>
+</ol>
+<p>源码：<code>vllm/utils/__init__.py</code> 里的 <code>get_mp_context()</code>、<code>vllm/v1/executor/multiproc_executor.py</code> 起 Worker 时的 spawn 配置。</p>
+<hr />
+<p><strong>3. SchedulerOutput 从 EngineCore 到 Worker 完整链路。</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># EngineCore 进程（writer 端）</span>
+<span class="n">scheduler_output</span> <span class="o">=</span> <span class="n">scheduler</span><span class="o">.</span><span class="n">schedule</span><span class="p">()</span>
+<span class="c1"># ① Python 对象 → msgpack bytes（msgspec 编码）</span>
+<span class="n">serialized</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">scheduler_output</span><span class="p">)</span>
+<span class="c1"># ② 同时把 tensor / numpy array 用 PickleBuffer 包成 OOB</span>
+<span class="c1">#    OOB buffer 不进 msgpack 主流，单独走 shared memory</span>
+<span class="n">oob_buffers</span> <span class="o">=</span> <span class="p">[</span><span class="n">PickleBuffer</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">scheduler_output</span><span class="o">.</span><span class="n">tensors</span><span class="p">]</span>
+<span class="c1"># ③ 写入共享内存 ring</span>
+<span class="n">shm_message_queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">serialized</span><span class="p">,</span> <span class="n">oob_buffers</span><span class="o">=</span><span class="n">oob_buffers</span><span class="p">)</span>
+       <span class="err">↓</span>
+<span class="p">[</span><span class="n">共享内存</span> <span class="n">ring</span> <span class="n">buffer</span><span class="err">（</span><span class="n">mmap</span> <span class="n">文件</span> <span class="o">+</span> <span class="n">spinlock</span><span class="err">）</span><span class="p">]</span>
+       <span class="err">↓</span>
+<span class="c1"># 每个 Worker 进程（reader 端）</span>
+<span class="n">serialized</span><span class="p">,</span> <span class="n">oob_buffers</span> <span class="o">=</span> <span class="n">shm_message_queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+<span class="c1"># ④ 用同一个 msgspec schema 反序列化</span>
+<span class="n">scheduler_output</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">serialized</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">SchedulerOutput</span><span class="p">)</span>
+<span class="c1"># ⑤ OOB buffer 内存是共享的（mmap 同一段），不需要拷贝</span>
+<span class="c1">#    直接 torch.from_numpy(np.frombuffer(oob_buffer)) 包成 tensor</span>
+</code></pre></div>
+
+<p><strong>关键点</strong>：</p>
+<ul>
+<li>编码器 / 解码器：<code>msgspec.msgpack</code> —— 用 schema 加速，比 vanilla pickle 快 5-10×</li>
+<li>主流序列化（控制字段）：~ μs 级</li>
+<li>OOB（大 tensor）：<strong>零拷贝</strong>——writer 写 mmap 段，reader 直接读，物理上同一份内存</li>
+</ul>
+<hr />
+<p><strong>4. PEP 574 PickleBuffer + OOB 是什么？省多少次拷贝？</strong></p>
+<p><strong>PEP 574</strong> 是 Python 3.8 引入的 pickle 协议 5：支持"out-of-band buffer"——大对象（如 numpy / tensor）的内存不嵌入 pickle 主流，而是作为旁路 buffer 单独传输。</p>
+<p><strong>常规 pickle 链路</strong>（4 次拷贝）：</p>
+<div class="codehilite"><pre><span></span><code>tensor.numpy() → bytes (拷贝 1)
+                 → 嵌入 pickle byte stream (拷贝 2)
+                 → 写入 socket / pipe (拷贝 3)
+reader 读出  → 反序列化拷贝出来 (拷贝 4)
+</code></pre></div>
+
+<p><strong>PickleBuffer + OOB 链路</strong>（0 次拷贝）：</p>
+<div class="codehilite"><pre><span></span><code>tensor.numpy() 的底层 buffer 直接被 PickleBuffer 引用
+writer 写共享内存 mmap 段（OOB 通过 mmap 共享，不 memcpy）
+reader 直接对 mmap 段做 np.frombuffer + torch.from_numpy（不 memcpy）
+</code></pre></div>
+
+<p><strong>实际节省</strong>：每个 SchedulerOutput 含的 <code>input_token_ids</code> / <code>positions</code> / <code>block_tables</code> 等 tensor 加起来 KB-MB 级，每 step 100+ Hz，<strong>省的不是拷贝时间而是 CPU 带宽</strong>。在 8 卡 TP 上 broadcast 同一个对象给所有 Worker，OOB 让"writer 一次写、N 个 reader 同时读"成本平摊到 O(1)，而不是 O(N)。</p>
+<hr />
+<p><strong>5. 跨机器部署时 ZMQ 与共享内存怎么变？</strong></p>
+<p><strong>控制平面 ZMQ endpoint</strong>：</p>
+<ul>
+<li>单机：<code>ipc:///tmp/vllm_xxx</code>（Unix domain socket，最快）</li>
+<li>跨机：<code>tcp://&lt;host&gt;:&lt;port&gt;</code>（TCP，会经网卡但 ZMQ 协议透明切换）</li>
+</ul>
+<p>→ 应用层代码无需改，只是 endpoint 字符串换形式。</p>
+<p><strong>数据平面共享内存</strong>：</p>
+<ul>
+<li>跨机器<strong>不能用</strong>（mmap 是单机文件系统的概念）</li>
+<li>替换方案：
+  1. <strong>RPC over TCP</strong>（Ray executor 走这条路，性能损失 5-10%）
+  2. <strong>RDMA</strong>（高性能集群）
+  3. <strong>NCCL P2P</strong>（Worker 之间已有的 NCCL 通信可以借用）</li>
+</ul>
+<p>跨机部署的现实做法：<strong>API Server 与 EngineCore 同机 / 不同机都可（走 ZMQ TCP）；EngineCore 与 Worker 必须同机 / 同一 NUMA node</strong>——shared memory 强约束。</p>
+<p>跨节点的多 Worker 通过 NCCL（不是 shared memory）通信，这就是为什么 TP &gt; 单机卡数 + 多机部署强烈推荐改用 PP（PP 只需 P2P send/recv，跨机器友好）。</p>
+<hr />
+<p><strong>6. 一张 GPU OOM，整组进程怎么级联？K8s 怎么配？</strong></p>
+<p><strong>级联反应</strong>：</p>
+<ol>
+<li>Worker N OOM → 该 Worker 进程崩溃</li>
+<li>其他 Worker 在下一次 NCCL collective（AllReduce）时<strong>永远 hang</strong>——NCCL 是 collective，缺一个 rank 就死锁</li>
+<li>EngineCore 检测到 Worker 进程死了 → 主动 abort 整组 Worker</li>
+<li>EngineCore 进程退出</li>
+<li>API Server 进程的 ZMQ 检测到 EngineCore 断了 → 拒绝新请求 + 退出</li>
+<li>全组 1+1+N 个进程<strong>全死</strong></li>
+</ol>
+<p>→ 这就是 §9 说的 <strong>"故障域 = 整组"</strong>。无法只重启一个 Worker（NCCL 通信组无法 dynamic add member）。</p>
+<p><strong>K8s 配置</strong>：</p>
+<ul>
+<li><strong><code>LeaderWorkerSet</code></strong>（KubeRay 等提供的 CRD）：把 API+Engine+Workers 当成一个 atomic unit，任一进程退出就重启整组</li>
+<li>不能用 <code>Deployment</code> + 单 pod 部署（默认行为是按 pod 重启，无法保证整组同步）</li>
+<li>不能用 <code>StatefulSet</code> 分 pod（NCCL group 需要进程同时启动）</li>
+</ul>
+<p>具体配置：见 <a href="../08-production-deployment/06-reliability-and-failure-modes.html"><code>08-production-deployment/06-reliability-and-failure-modes.md</code></a> §3。</p>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>回到 <a href="02-architecture.html"><code>02-architecture.md</code></a>（带着进程细节再看一遍高层架构，会发现很多之前没看懂的字段都有了归属）。</li>
+<li>进入源码深读：<a href="../03-code-walkthrough/01-entry-points.html"><code>03-code-walkthrough/01-entry-points.md</code></a>（<code>LLMEngine.add_request</code> → <code>step()</code> 的完整调用链）。</li>
+<li>想看 GPU 平面通信：<a href="../05-distributed/01-tp-pp-ep.html"><code>05-distributed/01-tp-pp-ep.md</code></a>（本节只涵盖 CPU 进程间，TP/PP 的 NCCL AllReduce 在这里）。</li>
+<li>想从生产视角理解：<a href="../08-production-deployment/01-deployment-architectures.html"><code>08-production-deployment/01-deployment-architectures.md</code></a>（这套进程模型在 K8s 上的 Pod 划分与 LWS 部署形态）。</li>
+<li>想看源码：<code>vllm/v1/engine/core_client.py:460</code> (<code>MPClient</code>)、<code>vllm/distributed/device_communicators/shm_broadcast.py:358</code> (<code>MessageQueue</code>)、<code>vllm/v1/executor/multiproc_executor.py:792</code> (<code>worker_main</code>)。</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../01-overview/04-project-structure.html"><span class="label">上一篇</span><span class="title">04. vLLM 项目文件架构地图</span></a>
+<a class="next" href="../02-core-concepts/01-paged-attention.html"><span class="label">下一篇</span><span class="title">01. PagedAttention 详解</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

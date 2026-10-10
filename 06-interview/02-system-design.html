@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM 推理服务设计：工程推演 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li class="current"><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part VI</span> · 工程问答</div>
+      <div class="reading-time">预计阅读 11 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="llm">LLM 推理服务设计：工程推演</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 需要从 0 到 1 设计大模型推理服务的工程师；也适合技术 leader 与架构师做 capacity planning 时当检查清单。</p>
+<p><strong>前置阅读：</strong> <a href="01-common-questions.html"><code>06-interview/01-common-questions.md</code></a>（基础问答打底），<a href="../05-distributed/01-tp-pp-ep.html"><code>05-distributed/01-tp-pp-ep.md</code></a>（并行策略），<a href="../05-distributed/02-disaggregated.html"><code>05-distributed/02-disaggregated.md</code></a>（prefill/decode 拆分），<a href="../02-core-concepts/04-prefix-caching.html"><code>02-core-concepts/04-prefix-caching.md</code></a>（prefix cache 是关键工程变量）。</p>
+<p><strong>耗时：</strong> 约 30 分钟。</p>
+<p><strong>学完能：</strong>
+1. 掌握 6 步通用设计框架，遇到新的 LLM 推理场景也能拆开分析
+2. 给出 4 类典型 workload（chatbot / 长上下文 RAG / agent / 突发流量）的参考方案
+3. 在 capacity estimation 阶段给出"模型大小 / KV per token / 并发上限"的口算
+4. 识别 7 个容易被忽略的工程细节和 5 个常见误区</p>
+</blockquote>
+<p>这章不是给一个固定答案，而是给一套设计推演方法。原则很简单：<strong>先确认 requirements，再做容量估算，接着分层设计，最后把 tradeoff 和 metric 说清楚</strong>。</p>
+<hr />
+<h2 id="_1">通用设计框架</h2>
+<p>任何"设计一个 LLM 推理系统"的问题，都可以按这 6 步推进：</p>
+<pre class="mermaid">flowchart TD
+    S1["1. Clarify Requirements&lt;br/&gt;· QPS / 并发数&lt;br/&gt;· 模型大小 / 上下文长度&lt;br/&gt;· SLO（TTFT、TPOT、p99）&lt;br/&gt;· 业务类型（chat / RAG / agent / batch）"]
+    S2["2. Capacity Estimation&lt;br/&gt;· 模型大小 vs 单卡显存&lt;br/&gt;· KV cache 总量&lt;br/&gt;· 算力需求（prefill TFLOPs / decode tok/s）"]
+    S3["3. High-Level Architecture&lt;br/&gt;· Router / LB&lt;br/&gt;· Inference Cluster&lt;br/&gt;· KV / Prefix Cache 层级&lt;br/&gt;· Storage（模型 / 用户数据）"]
+    S4["4. Inference Engine Choice&lt;br/&gt;· vLLM / SGLang / TRT-LLM 选哪个&lt;br/&gt;· 并行策略 TP / PP / EP / DP&lt;br/&gt;· 量化、投机、prefix caching"]
+    S5["5. Reliability &amp; Scaling&lt;br/&gt;· 故障切换、灰度、Canary&lt;br/&gt;· 水平扩展 / 缩容&lt;br/&gt;· 模型热更新"]
+    S6["6. Observability&lt;br/&gt;· TTFT/TPOT 直方图、p99&lt;br/&gt;· preempt 次数 / prefix hit rate&lt;br/&gt;· 监控、报警、debug 工具"]
+
+    S1 --&gt; S2 --&gt; S3 --&gt; S4 --&gt; S5 --&gt; S6
+
+    classDef step fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    class S1,S2,S3,S4,S5,S6 step;</pre>
+<hr />
+<h2 id="1-chatgpt-like-10k-in-flight">题 1：设计一个 ChatGPT-like 服务，10k 并发 in-flight 用户</h2>
+<h3 id="1clarify">阶段 1：Clarify</h3>
+<p>先确认：</p>
+<ul>
+<li>模型多大？（假设 Llama-3 70B）</li>
+<li>输入长度 / 输出长度分布？（假设 prompt 1k、output 500 tokens）</li>
+<li>TTFT 目标？（假设 &lt; 500ms）</li>
+<li>TPOT 目标？（假设 &lt; 50ms）</li>
+<li>是否需要多轮对话历史？（是 → 大量 prefix 复用）</li>
+</ul>
+<h3 id="2capacity">阶段 2：Capacity</h3>
+<ul>
+<li>70B FP16 = 140GB</li>
+<li>单 H100 80GB 装不下 → TP=2 起步</li>
+<li>KV per token：约 320KB（70B 配置）</li>
+<li>单用户上下文 (1k+500)×320KB ≈ 480MB</li>
+<li>10k 并发 → 4.8 TB KV！显然不能全在 GPU</li>
+<li>实际"in-flight"瞬时活跃约 200-1000 个，其他在 prefix cache 里</li>
+</ul>
+<p>→ <strong>结论</strong>：单实例 8×H100 TP=8，配合 prefix cache + 多实例。</p>
+<h3 id="3">阶段 3：架构</h3>
+<pre class="mermaid">flowchart TD
+    LB["Router / Load Balancer&lt;br/&gt;基于 conversation_id 路由&lt;br/&gt;提高 prefix cache 命中"]
+    V1["vLLM 实例 1&lt;br/&gt;8×H100 · TP=8"]
+    V2["vLLM 实例 2&lt;br/&gt;8×H100 · TP=8"]
+    Vn["vLLM 实例 N&lt;br/&gt;8×H100 · TP=8"]
+    Cache["Prefix Cache 层级&lt;br/&gt;L1: GPU HBM&lt;br/&gt;L2: CPU DRAM&lt;br/&gt;L3: LMCache"]
+
+    LB --&gt; V1
+    LB --&gt; V2
+    LB --&gt; Vn
+    V1 -.-&gt; Cache
+    V2 -.-&gt; Cache
+    Vn -.-&gt; Cache
+
+    classDef lb     fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef pod    fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef cache  fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class LB lb;
+    class V1,V2,Vn pod;
+    class Cache cache;</pre>
+<h3 id="4engine">阶段 4：Engine 选择</h3>
+<p><strong>vLLM 是首选</strong>：</p>
+<ul>
+<li>模型支持广（70B 一键跑）</li>
+<li>continuous batching 成熟</li>
+<li>prefix caching 默认开（chatbot 收益大）</li>
+<li>chunked prefill 默认开（长 prompt 不卡 decode）</li>
+</ul>
+<p>并行：</p>
+<ul>
+<li>TP=8 单实例（一台 8 卡 H100）</li>
+<li>模型实例间 DP（每实例独立模型副本）</li>
+</ul>
+<p>量化：H100 用 <strong>FP8</strong>（精度损失 &lt; 1%，吞吐 ×1.5）。
+投机解码：开 <strong>EAGLE</strong>，对 chat 接受率 75-85%，吞吐再 ×1.5-2。</p>
+<h3 id="5">阶段 5：可靠性</h3>
+<ul>
+<li><strong>路由</strong>：基于 <code>conversation_id</code> 哈希到固定实例，保证同一用户的 prefix cache 命中</li>
+<li><strong>故障切换</strong>：实例死了，路由到其他实例（cache miss 一次，重 prefill）</li>
+<li><strong>金丝雀部署</strong>：新模型先 5% 流量</li>
+<li><strong>模型热更新</strong>：vLLM 的 <code>sleep + wake_up</code>（卸载权重 → 加载新版本）</li>
+</ul>
+<h3 id="6">阶段 6：监控</h3>
+<p>关键面板：</p>
+<ul>
+<li>TTFT p50/p99</li>
+<li>TPOT p50/p99</li>
+<li><code>vllm:kv_cache_usage_perc</code></li>
+<li><code>vllm:prefix_cache_hits_total / vllm:prefix_cache_queries_total</code>（目标 &gt; 60%）</li>
+<li><code>vllm:num_preemptions_total</code>（目标接近 0）</li>
+<li>GPU util、NVLink 带宽</li>
+</ul>
+<hr />
+<h2 id="2200k-tokens-rag">题 2：长上下文（200k tokens）的 RAG 服务</h2>
+<h3 id="_2">关键挑战</h3>
+<ul>
+<li>200k 上下文 → 单请求 KV 占用极大</li>
+<li>prefill 极慢（200k×200k attention 二次方）</li>
+<li>decode 单步要读所有 KV，访存巨大</li>
+</ul>
+<h3 id="_3">设计要点</h3>
+<ol>
+<li><strong>Chunked prefill 默认开</strong>，避免 200k prefill 阻塞所有人</li>
+<li><strong>KV cache FP8</strong>：让 num_blocks ×2</li>
+<li><strong>prefix caching</strong>：RAG 模板部分（system + 检索文档头）共享</li>
+<li><strong>Disaggregated prefill/decode</strong>：
+   - prefill 集群：用算力强的卡（H200 / B200）
+   - decode 集群：用 HBM 大的卡（更多 KV 容量）
+   - NIXL RDMA 传 KV</li>
+<li><strong>模型选 GQA/MLA</strong>：KV 占用降一个数量级
+   - DeepSeek MLA：KV/token 约 1/10 普通 Transformer
+   - Llama-3 GQA（KV head 8 vs Q head 32）：KV/token 约 1/4</li>
+<li><strong>限流</strong>：单实例同时只跑 N 个 200k 请求（防 KV 爆掉）</li>
+</ol>
+<hr />
+<h2 id="3agent">题 3：Agent 框架（工具调用 + 结构化输出）</h2>
+<h3 id="_4">特点</h3>
+<ul>
+<li>每轮 prompt 包含工具描述（重复）→ 强 prefix caching</li>
+<li>输出需要 JSON / function call 格式 → structured output</li>
+<li>一次会话多次 prefill+decode（工具返回后续接）</li>
+</ul>
+<h3 id="_5">设计要点</h3>
+<ol>
+<li><strong>Structured Output</strong>：vLLM 用 <code>xgrammar</code> / <code>outlines</code>，按 schema mask logits</li>
+<li><strong>Prefix Caching</strong>：工具描述是大头（5k tokens 常见）</li>
+<li><strong>保证 prefix 对齐</strong>：tool description block_size 对齐</li>
+<li><strong>会话 stickiness</strong>：同一会话路由到同一实例</li>
+<li><strong>Speculative Decoding</strong>：function call 格式高度可预测，draft 模型接受率 80%+</li>
+<li><strong>响应 schema 校验</strong>：客户端二次验证，避免 LLM 输出非法 JSON（即使 structured output 也偶尔异常）</li>
+</ol>
+<hr />
+<h2 id="4">题 4：怎么处理"突发流量"？</h2>
+<h3 id="_6">思路</h3>
+<ol>
+<li><strong>入场准入控制</strong>：超过 max_num_seqs → 401 / 排队</li>
+<li><strong>优先级队列</strong>：付费用户高优先级，必要时 preempt 免费用户</li>
+<li><strong>自动扩缩容</strong>：HPA 基于 <code>num_requests_waiting</code> 触发</li>
+<li><strong>降级策略</strong>：
+   - 流量过高 → 强制 max_tokens 上限
+   - 进一步过高 → 关投机解码（吞吐有限收益但稳定性 up）
+   - 极端 → 拒绝部分请求</li>
+<li><strong>缓存兜底</strong>：对热门 prompt 完全缓存 response（不进推理）</li>
+</ol>
+<hr />
+<h2 id="5-vs">题 5：单实例 vs 多实例的取舍</h2>
+<p><strong>单实例（一个大实例）</strong>：</p>
+<ul>
+<li>优点：prefix cache 集中命中率高、TP 内通信快</li>
+<li>缺点：故障域大、扩容粒度粗</li>
+</ul>
+<p><strong>多实例（多个小实例）</strong>：</p>
+<ul>
+<li>优点：故障域小、能精细扩缩、水平扩展</li>
+<li>缺点：prefix cache 分散（除非路由 sticky）</li>
+</ul>
+<p><strong>生产推荐</strong>：多实例 + sticky routing。每实例 4-8 GPU，靠模型实例级 DP 扩展。</p>
+<hr />
+<h2 id="_7">容易被忽略的工程细节</h2>
+<p>这些细节能把设计从泛泛而谈拉回工程现场：</p>
+<ol>
+<li><strong>"基于 conversation_id sticky"</strong> —— 不是随便 LB</li>
+<li><strong>"启动时 profile run 确定 num_blocks"</strong> —— 知道 vLLM 内部</li>
+<li><strong>"GPU memory utilization 0.9 + 缓冲"</strong> —— 知道为什么不能 0.95</li>
+<li><strong>"chunked prefill 让单 step 时长稳定"</strong> —— 知道 TPOT 抖动来源</li>
+<li><strong>"H100 用 FP8 比 A100 用 INT4 好"</strong> —— 量化与硬件匹配</li>
+<li><strong>"NIXL RDMA disaggregated"</strong> —— 跟得上当下前沿</li>
+<li><strong>"用 vLLM 的 Prometheus metric 监控 preempt"</strong> —— 工程实践</li>
+</ol>
+<hr />
+<h2 id="_8">常见误区</h2>
+<p>尽量避免：</p>
+<ol>
+<li>"我会自己实现 PagedAttention" —— 已是开源标准，重造没意义</li>
+<li>"我会用 HF Transformers 部署" —— 暴露不懂行</li>
+<li>"用 Redis 缓存所有结果" —— LLM 输出几乎不重复</li>
+<li>跳过 capacity estimation 直奔架构 —— 没数字就是空谈</li>
+<li>一上来就讲技术细节 —— 不问 requirements 是大忌</li>
+</ol>
+<hr />
+<h2 id="_9">自己练习的方式</h2>
+<p>设计 3 个不同 workload，每个写一份 1-2 页的设计：</p>
+<ul>
+<li>"服务 1k 并发的客服 chatbot"</li>
+<li>"服务 100 个 50k-token RAG 请求"</li>
+<li>"批量处理 10M 条文档摘要"</li>
+</ul>
+<p>对比三种 workload 下你的设计差异——这就是 system design 的真正能力。</p>
+<hr />
+<h2 id="_10">小结</h2>
+<ul>
+<li>6 步通用框架：Clarify → Capacity → Architecture → Engine 选择 → 可靠性 → 可观测。少一步，设计就容易漂。</li>
+<li>4 类典型 workload 各有重点：chatbot 重 prefix cache 与 sticky 路由、长上下文 RAG 必须认真拆 prefill/decode、agent 强 structured output、突发流量靠准入控制 + HPA + 降级。</li>
+<li>关键是 capacity estimation 出数字、引用 vLLM 内部细节（profile run / chunked prefill / NIXL）、用 Prometheus metric 名讨论监控。</li>
+<li>常见误区：跳过 requirements、自造 PagedAttention、用 HF 部署生产服务、Redis 缓存 LLM 输出、不问 workload 就上架构。</li>
+</ul>
+<h2 id="_11">自检</h2>
+<blockquote>
+<p>不用照着原文复述，重点是把现象、机制、源码入口和取舍讲顺。</p>
+</blockquote>
+<p><strong>1. 10k 并发 chatbot + 200B 模型 + 2k 输入 / 1k 输出 + 单卡 80GB，capacity 怎么算？</strong></p>
+<p><strong>Step 1 · 模型显存</strong>：</p>
+<ul>
+<li>200B × 2 (BF16) = 400 GB → 单卡 80GB <strong>塞不下，必须 TP ≥ 8</strong></li>
+<li>TP=8（单机 H100×8 = 640GB）：每卡装 50GB 模型 + KV 预算</li>
+<li>若用 FP8 量化：200B × 1 = 200GB → TP=4 即可</li>
+</ul>
+<p><strong>Step 2 · KV cache 容量</strong>：</p>
+<ul>
+<li>假设 200B GQA: hidden=12288, num_kv_heads=16, head_dim=128（推测）, layers=80</li>
+<li>单 token KV = 2 × 16 × 128 × 80 × 2 = <strong>655 KB</strong>（远大于 70B 的 320 KB）</li>
+<li>单请求 (2K+1K)=3K token → 1.9 GB / 请求</li>
+</ul>
+<p><strong>Step 3 · 单实例并发能力</strong>：</p>
+<ul>
+<li>TP=8 BF16：每卡剩余 30GB KV → 8 × 30 / 1.9 ≈ <strong>126 个并发请求 / 实例</strong></li>
+<li>但实际有 active vs total batch 区别——running 通常占 max_num_seqs 50%。安全估 <strong>64 active</strong></li>
+</ul>
+<p><strong>Step 4 · 实例数</strong>：</p>
+<ul>
+<li>10000 并发 / 64 = <strong>157 个实例</strong>，每个 8 卡 H100 → <strong>1256 张 H100</strong>！</li>
+</ul>
+<p><strong>Step 5 · 优化建议</strong>（这数太大）：</p>
+<ul>
+<li><strong>量化</strong>：FP8 减半显存 → 80 实例 × 4 卡 = <strong>320 张 H100</strong>（仍多但可行）</li>
+<li><strong>disaggregated</strong>：prefill 集群 32 节点 + decode 集群 80 节点</li>
+<li><strong>prefix caching</strong>：若 system prompt 长（如 1K token）且共享，命中率 70% → 等效减少 70% prefill 算力</li>
+<li><strong>重新讨论 SLO</strong>：能不能放宽 TTFT 到 2s？支持 5k 并发就够了？</li>
+</ul>
+<p>并行策略：<strong>TP=8 + FP8 + EP（若 200B 是 MoE）</strong>。</p>
+<p>→ 真正做容量评审时，先给出<strong>第一个数（1256 H100）+ 减法路径（FP8 → 320）</strong>，比直接说"用 FP8 + TP=8"更能说明你真的会算 capacity。</p>
+<hr />
+<p><strong>2. 自出题："500 并发多模态助手"按 6 步框架。</strong></p>
+<p><strong>Step 1 · Requirements</strong>：</p>
+<ul>
+<li>500 并发，图像 + 文本</li>
+<li>文本 prompt 1K token + 图像 1024×1024（≈1024 image tokens）+ 输出 500 token</li>
+<li>TTFT &lt; 800ms（用户上传图后等回答）, TPOT &lt; 100ms</li>
+</ul>
+<p><strong>Step 2 · 模型选型</strong>：Qwen2-VL 72B 或 Llama-3-VL 90B</p>
+<p><strong>Step 3 · Capacity</strong>：</p>
+<ul>
+<li>72B BF16 = 144GB → TP=2 (H100×2=160GB)</li>
+<li>每个请求 KV = (1024 + 1024 + 500) × ~256KB = 650 MB</li>
+<li>图像 encoder 输出（mm_embeddings）= 1024 × 4096 × 2 = 8 MB / image，需要 encoder cache</li>
+<li>80GB H100 单卡剩 50GB → 单实例 (TP=2) 并发约 80 个</li>
+<li>500 并发 → 7 实例 × 2 卡 = <strong>14 张 H100</strong></li>
+</ul>
+<p><strong>Step 4 · 路由层</strong>：</p>
+<ul>
+<li><strong>图像 hash 路由</strong>：相同图像打到同一实例（encoder cache 共享，省 8MB embed 重算）</li>
+<li>prefix cache aware：相同 system prompt 打同一实例</li>
+</ul>
+<p><strong>Step 5 · SLO 与监控</strong>：</p>
+<ul>
+<li>TTFT p99 &lt; 800ms，单独监控 mm_encoder time</li>
+<li><code>vllm:mm_cache_hits / vllm:mm_cache_queries</code> 命中率 &gt; 60%</li>
+<li><code>vllm:kv_cache_usage_perc</code> &lt; 0.85</li>
+</ul>
+<p><strong>Step 6 · 失效模式</strong>：</p>
+<ul>
+<li>Encoder OOM：限制 <code>--mm-encoder-cache-size</code></li>
+<li>大图爆 token：限制图像分辨率（API 层 resize 到 1024×1024）</li>
+<li>文本长 prefill 卡死：开 chunked prefill</li>
+</ul>
+<p>→ 完整推演约 5 分钟，配 1 张架构图。</p>
+<hr />
+<p><strong>3. 题 5（单实例 vs 多实例）细化判断 + 引用 metric 与故障域。</strong></p>
+<table class="three-line">
+<thead>
+<tr>
+<th>维度</th>
+<th>单实例（大 TP）</th>
+<th>多实例（小 TP × N）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>prefix_cache_hits / prefix_cache_queries</code></strong></td>
+<td>高（cache 集中）</td>
+<td><strong>低</strong>（N 个独立 cache）</td>
+</tr>
+<tr>
+<td><strong>延迟（TTFT）</strong></td>
+<td>单 query 低（大 TP 提速）</td>
+<td>单 query 中（小 TP）</td>
+</tr>
+<tr>
+<td><strong>吞吐峰值</strong></td>
+<td>受限（单卡 KV 容量）</td>
+<td>高（独立并发）</td>
+</tr>
+<tr>
+<td><strong>故障域</strong></td>
+<td>大（一挂全挂）</td>
+<td>小（一实例挂只影响 1/N）</td>
+</tr>
+<tr>
+<td><strong>运维复杂度</strong></td>
+<td>低（一个 deployment）</td>
+<td>高（N 个 + LB）</td>
+</tr>
+<tr>
+<td><strong>冷启动恢复</strong></td>
+<td>慢（NCCL 重建 + 大模型加载）</td>
+<td>快（小模型 + 部分降级）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>判断条件</strong>：</p>
+<ul>
+<li><strong>prefix cache 命中率 &gt; 50% + 单 query 延迟敏感 → 单实例</strong>（例：chatbot 长 system prompt、agent 工具调用）</li>
+<li><strong>prefix cache 命中率 &lt; 20% + 高 QPS + 强可用要求 → 多实例</strong>（例：RAG 每问不同、batch 推理）</li>
+<li><strong>平衡区</strong>：多实例 + cache-aware routing（路由层做 prefix awareness 弥补命中率，又保留多实例的故障域优势）</li>
+</ul>
+<p>→ 看 <code>prefix_cache_hits / prefix_cache_queries</code> 一个指标就能缩小决策空间。这是做系统设计选型时很关键的证据。</p>
+<hr />
+<p><strong>4. 题 1（10k 并发 chatbot）架构图。</strong></p>
+<div class="codehilite"><pre><span></span><code>                         ┌────────────────────────────┐
+                         │     Prometheus + Grafana    │  ← 监控面板
+                         │  - TTFT p99 / TPOT p99      │     · 4 大金信号
+                         │  - kv_cache_usage_perc      │     · alert 规则
+                         │  - prefix cache hit rate     │
+                         └──────────────▲──────────────┘
+                                        │ scrape /metrics
+                                        │
+                    ┌───────────────────┴────────────────────┐
+                    │                                        │
+                    ▼                                        ▼
+    ┌─────────────────────┐  cache-aware routing   ┌─────────────────────┐
+    │    Sticky LB        │ ─────────────────────► │    Sticky LB        │
+    │  (Envoy + ExtProc)  │  (按 session_id hash)   │  (备份)              │
+    │                     │                        │                     │
+    │ - hash(session_id)  │                        └─────────────────────┘
+    │ - prefix-aware fall │
+    │ - failure detect    │
+    └─────┬───────────────┘
+          │
+          │ 路由到 vLLM pod
+          ▼
+   ┌──────────────────────────────────────────────────┐
+   │            vLLM 实例池（TP=8 × N pods）          │
+   │  ┌──────────────┐  ┌──────────────┐  ┌────────┐ │
+   │  │ Pod 1 (TP=8) │  │ Pod 2 (TP=8) │  │ ...    │ │
+   │  │ L1: GPU HBM  │  │ L1: GPU HBM  │  │        │ │
+   │  │ prefix cache │  │ prefix cache │  │        │ │
+   │  └─────┬────────┘  └─────┬────────┘  └────────┘ │
+   │        │                  │                     │
+   └────────┼──────────────────┼─────────────────────┘
+            │                  │ KV connector
+            ▼                  ▼
+   ┌──────────────────────────────────────────────────┐
+   │     L2: 共享 CPU DRAM Cache (LMCache)            │  ← Prefix Cache 层级
+   │     (跨 pod 共享冷 prefix)                         │
+   └──────────┬───────────────────────────────────────┘
+              │
+              ▼
+   ┌──────────────────────────────────────────────────┐
+   │     L3: NVMe / S3 Object Store                    │
+   │     (超长 system prompt、历史多轮对话 cache)        │
+   └──────────────────────────────────────────────────┘
+</code></pre></div>
+
+<p><strong>4 部分要点</strong>：</p>
+<ol>
+<li><strong>Sticky LB</strong>：用 session_id hash 让同用户落同 pod（L1 cache 命中）；prefix-aware fallback（即使首次访问，按 prompt prefix hash 路由）</li>
+<li><strong>vLLM 实例</strong>：TP=8 单机部署，每实例独立 L1 cache</li>
+<li><strong>Prefix Cache 层级</strong>：L1 GPU HBM（每 pod 本地）、L2 CPU DRAM（LMCache 跨 pod 共享）、L3 NVMe（超长冷 cache）</li>
+<li><strong>监控面板</strong>：Prometheus scrape 所有 pod 的 <code>/metrics</code>，Grafana 显示 4 大金信号 + 告警规则触发 PagerDuty</li>
+</ol>
+<p>补充：图上额外标注 KV connector 走 RDMA（pod ↔ LMCache），HPA 按 <code>vllm:num_requests_running</code> 扩缩容。</p>
+<h2 id="_12">下一步</h2>
+<ul>
+<li>下一节：<a href="../07-hands-on/01-setup.html"><code>07-hands-on/01-setup.md</code></a>（把上面讲的概念真跑一遍，留下可复现的实验记录）</li>
+<li>想看源码：<code>vllm/v1/core/sched/scheduler.py</code>、<code>vllm/v1/core/kv_cache_manager.py</code>、<code>vllm/entrypoints/openai/api_server.py</code></li>
+<li>想动手：<a href="../07-hands-on/03-mini-experiments.html"><code>07-hands-on/03-mini-experiments.md</code></a>（5 个实验配出数字，反过来校准设计判断）</li>
+<li>想从生产视角理解：<a href="../08-production-deployment/01-deployment-architectures.html"><code>08-production-deployment/01-deployment-architectures.md</code></a>、<a href="../08-production-deployment/04-autoscaling-and-capacity.html"><code>08-production-deployment/04-autoscaling-and-capacity.md</code></a>、<a href="../08-production-deployment/07-incident-playbook.html"><code>08-production-deployment/07-incident-playbook.md</code></a>（突发流量与故障真实 case）</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../06-interview/01-common-questions.html"><span class="label">上一篇</span><span class="title">vLLM 工程问答速查</span></a>
+<a class="next" href="../07-hands-on/01-setup.html"><span class="label">下一篇</span><span class="title">01. 环境搭建与第一个 Demo</span></a>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

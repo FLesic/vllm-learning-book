@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>05. Embedding / Pooling 模型：vLLM 不只能做生成 · vLLM 学习手册</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <nav class="sidebar">
+      <div class="book-title"><a href="../README.html">vLLM 学习手册</a></div>
+      <div class="book-sub">A Code-Level Tutorial</div>
+      <a class="home-link" href="../README.html">📖 返回总目录</a>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="全文搜索..." autocomplete="off">
+      </div>
+      <div id="search-results"></div>
+      <div id="sidebar-nav"><div class="part">
+  <div class="part-label">Part I</div>
+  <div class="part-name">入门与架构</div>
+  <ol class="chapters">
+    <li><a data-num="00" href="../01-overview/00-prerequisites.html">00. 前置知识：进入 vLLM 之前要懂的概念</a></li>
+    <li><a data-num="01" href="../01-overview/01-what-is-vllm.html">01. vLLM 是什么？为什么快？</a></li>
+    <li><a data-num="02" href="../01-overview/02-architecture.html">02. vLLM 整体架构</a></li>
+    <li><a data-num="03" href="../01-overview/03-v0-vs-v1.html">03. V0 → V1：vLLM 的架构重构</a></li>
+    <li><a data-num="04" href="../01-overview/04-project-structure.html">04. vLLM 项目文件架构地图</a></li>
+    <li><a data-num="05" href="../01-overview/05-process-and-ipc-internals.html">05. 进程模型与进程间通信内部机制</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part II</div>
+  <div class="part-name">核心算法</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../02-core-concepts/01-paged-attention.html">01. PagedAttention 详解</a></li>
+    <li><a data-num="02" href="../02-core-concepts/02-continuous-batching.html">02. Continuous Batching（连续批处理）</a></li>
+    <li><a data-num="03" href="../02-core-concepts/03-kv-cache-management.html">03. KV Cache 管理深入</a></li>
+    <li><a data-num="04" href="../02-core-concepts/04-prefix-caching.html">04. Prefix Caching 专题</a></li>
+    <li><a data-num="05" href="../02-core-concepts/05-chunked-prefill.html">05. Chunked Prefill</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part III</div>
+  <div class="part-name">源码走读</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../03-code-walkthrough/01-entry-points.html">01. 入口与引擎主循环</a></li>
+    <li><a data-num="02" href="../03-code-walkthrough/02-scheduler.html">02. Scheduler 深读</a></li>
+    <li><a data-num="02b" href="../03-code-walkthrough/02b-scheduling-policies.html">02b. 调度策略：FCFS vs PRIORITY、优先级反演与抢占代价</a></li>
+    <li><a data-num="03" href="../03-code-walkthrough/03-kv-cache-manager.html">03. KVCacheManager 与 BlockPool 源码深读</a></li>
+    <li><a data-num="04" href="../03-code-walkthrough/04-model-runner.html">04. GPUModelRunner 源码深读</a></li>
+    <li><a data-num="05" href="../03-code-walkthrough/05-attention-backends.html">05. Attention Backends 源码深读</a></li>
+    <li><a data-num="06" href="../03-code-walkthrough/06-cuda-kernels.html">06. CUDA Kernels：从 paged_attention 到自定义算子</a></li>
+    <li><a data-num="07" href="../03-code-walkthrough/07-model-architectures.html">07. 模型架构特异：MLA / Mamba / MoE 在 vLLM 源码层</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IV</div>
+  <div class="part-name">性能优化</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../04-optimizations/01-quantization.html">01. 量化（Quantization）</a></li>
+    <li><a data-num="02" href="../04-optimizations/02-speculative-decoding.html">02. Speculative Decoding（投机解码）</a></li>
+    <li><a data-num="03" href="../04-optimizations/03-cudagraph-and-compile.html">录制阶段（一次性）</a></li>
+    <li><a data-num="04" href="../04-optimizations/04-compilation-internals.html">04. Compilation Internals：CompilerManager / VllmBackend / 自定义 pass</a></li>
+    <li><a data-num="05" href="../04-optimizations/05-roofline-and-arithmetic-intensity.html">05. 性能模型：存算比、Roofline，以及 Prefill / Decode 的本质差异</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part V</div>
+  <div class="part-name">分布式</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../05-distributed/01-tp-pp-ep.html">01. 分布式推理：TP / PP / EP / DP</a></li>
+    <li><a data-num="02" href="../05-distributed/02-disaggregated.html">02. Disaggregated Prefill / Decode</a></li>
+    <li><a data-num="03" href="../05-distributed/03-expert-parallel-deep-dive.html">03. Expert Parallel 深度：AllToAll、6 个后端、负载均衡</a></li>
+    <li><a data-num="04" href="../05-distributed/04-context-parallel.html">04. Context Parallel：PCP / DCP 与长上下文切分</a></li>
+    <li><a data-num="05" href="../05-distributed/05-large-scale-cluster-inference.html">05. 千卡 / 万卡集群推理：规模化才暴露的工程问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VI</div>
+  <div class="part-name">工程问答</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../06-interview/01-common-questions.html">vLLM 工程问答速查</a></li>
+    <li><a data-num="02" href="../06-interview/02-system-design.html">LLM 推理服务设计：工程推演</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VII</div>
+  <div class="part-name">实操实验</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../07-hands-on/01-setup.html">01. 环境搭建与第一个 Demo</a></li>
+    <li><a data-num="02" href="../07-hands-on/02-trace-a-request.html">02. Trace 一个请求：把内部跑明白</a></li>
+    <li><a data-num="03" href="../07-hands-on/03-mini-experiments.html">03. 5 个 Mini 实验：把直觉变成数字</a></li>
+    <li><a data-num="04" href="../07-hands-on/04-profiling-and-debugging.html">04. Profiling 与调试：怎么定位 vLLM 性能 / 正确性问题</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part VIII</div>
+  <div class="part-name">生产部署</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../08-production-deployment/01-deployment-architectures.html">01. 大规模 vLLM 部署参考架构（2026 视角）</a></li>
+    <li><a data-num="02" href="../08-production-deployment/02-smart-routing-and-load-balancing.html">02. 请求调度与负载均衡：LLM 专属的"智能路由"</a></li>
+    <li><a data-num="03" href="../08-production-deployment/03-gateway-and-service-mesh.html">03. API 网关与 Service Mesh：让 LLM 流量"可治理"</a></li>
+    <li><a data-num="04" href="../08-production-deployment/04-autoscaling-and-capacity.html">04. 自动扩缩与容量规划</a></li>
+    <li><a data-num="05" href="../08-production-deployment/05-slo-and-observability.html">05. SLO 与可观测性：怎么"知道你的 LLM 服务好不好"</a></li>
+    <li><a data-num="06" href="../08-production-deployment/06-reliability-and-failure-modes.html">06. 稳定性：LLM 推理的失效模式与防护</a></li>
+    <li><a data-num="07" href="../08-production-deployment/07-incident-playbook.html">07. 真实故障 Runbook：8 个生产案例</a></li>
+    <li><a data-num="08" href="../08-production-deployment/08-monitoring-cookbook.html">08. 监控菜谱：可直接复制的 Prometheus 规则、PromQL、Dashboard 面板</a></li>
+    <li><a data-num="09" href="../08-production-deployment/09-vllm-doctor-skill.html">09. 把 playbook 编成 agent：vllm-doctor skill</a></li>
+    <li><a data-num="10" href="../08-production-deployment/10-gpu-utilization-and-tail-latency.html">10. 全链路性能诊断：GPU 为什么打不满、利用率上不去、长尾怎么治</a></li>
+  </ol>
+</div>
+<div class="part">
+  <div class="part-label">Part IX</div>
+  <div class="part-name">应用特性</div>
+  <ol class="chapters">
+    <li><a data-num="01" href="../09-advanced-features/01-sampling-and-logits.html">01. Sampling 全栈：从 logits 到 token</a></li>
+    <li><a data-num="02" href="../09-advanced-features/02-structured-output.html">02. Structured Output：JSON / Regex / Grammar 约束生成</a></li>
+    <li><a data-num="03" href="../09-advanced-features/03-multimodal.html">03. Multimodal：图像 / 视频 / 音频 一路打通</a></li>
+    <li><a data-num="04" href="../09-advanced-features/04-lora-serving.html">04. LoRA Serving：一个 base model 服务多个微调版本</a></li>
+    <li class="current"><a data-num="05" href="../09-advanced-features/05-embedding-and-pooling.html">05. Embedding / Pooling 模型：vLLM 不只能做生成</a></li>
+  </ol>
+</div></div>
+    </nav>
+
+    <main class="content">
+      <div class="breadcrumb"><a href="../README.html">vLLM 学习手册</a> · <span class="part-tag">Part IX</span> · 应用特性</div>
+      <div class="reading-time">预计阅读 7 分钟</div>
+      <article class="markdown-body" id="article"><h1 id="05-embedding-pooling-vllm">05. Embedding / Pooling 模型：vLLM 不只能做生成</h1>
+<blockquote class="lesson-meta">
+<p><strong>谁该读这一篇？</strong> 用 vLLM 替代 sentence-transformers 跑 embedding / reranker / 分类的应用开发者；做 RAG 后端的工程师。</p>
+<p><strong>前置阅读：</strong> <a href="../03-code-walkthrough/04-model-runner.html"><code>04-model-runner.md</code></a>、<a href="./01-sampling-and-logits.html"><code>01-sampling-and-logits.md</code></a>（了解 sampling 这一支才能理解 pooling 是怎么替换的）</p>
+<p><strong>耗时：</strong> 约 25 分钟</p>
+<p><strong>学完能：</strong>
+1. 解释 vLLM 跑 embedding 比 sentence-transformers 快的根因（batching / FlashAttn / 量化 / varlen）
+2. 在 CLS / Mean / Last / All / Dispatch 五类 Pooler 中正确选型
+3. 描述 BGE-M3 一次 forward 输出 dense+sparse+colbert 三种表示的实现
+4. 区分 bi-encoder（embedding）与 cross-encoder（reranker）的部署方式</p>
+</blockquote>
+<p>BGE、E5、Jina、bge-reranker、Qwen3-Embedding 这些模型在 vLLM 里能跑，且性能比 sentence-transformers 高几倍。原因：复用 vLLM 引擎（continuous batching + paged 注意 + 量化），只把 sampling 换成 pooling。涉及代码：<code>vllm/model_executor/layers/pooler/</code>、<code>vllm/v1/pool/</code>。</p>
+<hr />
+<h2 id="1-embedding">1. Embedding 与生成模型的差异</h2>
+<pre class="mermaid">flowchart LR
+    subgraph Gen["生成模型 (causal LM)"]
+        G1["input_ids"] --&gt; G2["forward"] --&gt; G3["logits&lt;br/&gt;(last token)"] --&gt; G4["Sampler"] --&gt; G5["下一个 token"]
+        G5 -.-&gt;|N step 自回归| G2
+    end
+    subgraph Emb["Embedding 模型 (encoder-only)"]
+        E1["input_ids"] --&gt; E2["forward&lt;br/&gt;(1 步)"] --&gt; E3["hidden_states&lt;br/&gt;(all tokens)"] --&gt; E4["Pooler"] --&gt; E5["embedding vector"]
+    end
+
+    classDef gen fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef emb fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    class G1,G2,G3,G4,G5 gen;
+    class E1,E2,E3,E4,E5 emb;</pre>
+<p>vLLM 的处理：</p>
+<ul>
+<li>engine / scheduler / KV manager / attention backend 全部复用</li>
+<li>不走 sampling 路径，改走 pooling 路径</li>
+<li>每个请求只算一次 prefill（无 decode），latency 主要看 prefill</li>
+</ul>
+<hr />
+<h2 id="2-pooler">2. Pooler 类层级</h2>
+<p><code>vllm/model_executor/layers/pooler/</code>：</p>
+<pre class="mermaid">flowchart LR
+    Root["Pooler (abstract)&lt;br/&gt;&lt;sub&gt;pooler/abstract.py:16&lt;/sub&gt;"]
+    SP["SequencePooler&lt;br/&gt;&lt;sub&gt;seqwise/poolers.py:44&lt;/sub&gt;"]
+    SPM["SequencePoolingMethod&lt;br/&gt;&lt;sub&gt;seqwise/methods.py:20&lt;/sub&gt;"]
+    CLS["CLSPool&lt;br/&gt;取第一个 token"]
+    Last["LastPool&lt;br/&gt;取最后一个 token"]
+    Mean["MeanPool&lt;br/&gt;取均值"]
+    TP["TokenPooler&lt;br/&gt;&lt;sub&gt;tokwise/poolers.py:48&lt;/sub&gt;"]
+    All["AllPool&lt;br/&gt;返回所有 token 的 embed"]
+    Disp["DispatchPooler&lt;br/&gt;按 task 路由&lt;br/&gt;&lt;sub&gt;special.py:25&lt;/sub&gt;"]
+    ID["IdentityPooler&lt;br/&gt;原样返回 hidden&lt;br/&gt;&lt;sub&gt;special.py:139&lt;/sub&gt;"]
+    Filter["BOSEOSFilter&lt;br/&gt;过滤 BOS/EOS&lt;br/&gt;&lt;sub&gt;special.py:151&lt;/sub&gt;"]
+    Bge["BgeM3Pooler&lt;br/&gt;dense + sparse + col-bert&lt;br/&gt;&lt;sub&gt;special.py:198&lt;/sub&gt;"]
+
+    Root --&gt; SP --&gt; SPM
+    SPM --&gt; CLS
+    SPM --&gt; Last
+    SPM --&gt; Mean
+    Root --&gt; TP --&gt; All
+    Root --&gt; Disp
+    Root --&gt; ID
+    Root --&gt; Filter
+    Root --&gt; Bge
+
+    classDef base   fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef branch fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef leaf   fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class Root base;
+    class SP,SPM,TP branch;
+    class CLS,Last,Mean,All,Disp,ID,Filter,Bge leaf;</pre>
+<p>PoolerActivation（<code>activations.py:73</code>）后处理：</p>
+<ul>
+<li><code>PoolerIdentity</code>：原样输出</li>
+<li><code>PoolerNormalize</code>：L2 normalize（对 dot product / cosine 相似度必须做）</li>
+<li><code>PoolerClassify</code> / <code>PoolerMultiLabelClassify</code>：分类头</li>
+</ul>
+<hr />
+<h2 id="3-pooling">3. 三种 pooling 方法该选哪个</h2>
+<table class="three-line">
+<thead>
+<tr>
+<th>Pooling</th>
+<th>含义</th>
+<th>典型模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLS</td>
+<td>取 <code>[CLS]</code> token 的 hidden</td>
+<td>BERT-style 分类、BGE-base</td>
+</tr>
+<tr>
+<td>Mean</td>
+<td>所有 token hidden 均值</td>
+<td>sentence-BERT、E5</td>
+</tr>
+<tr>
+<td>Last</td>
+<td>最后一个 token</td>
+<td>解码器风格 embedding（Llama-based）</td>
+</tr>
+</tbody>
+</table>
+<p>不同模型预训练时 pooling 是固定的，<strong>用错就废</strong>（输出向量没用）。vLLM 通过 <code>--task embed</code> 自动选，或 <code>pooling_type</code> 显式设。</p>
+<hr />
+<h2 id="4-poolingparamsapi">4. PoolingParams：API 入口</h2>
+<p><code>vllm/pooling_params.py</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PoolingParams</span><span class="p">:</span>
+    <span class="n">additional_data</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">truncate_prompt_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">output_kind</span><span class="p">:</span> <span class="n">PoolingOutputKind</span>
+    <span class="c1"># 部分模型支持 task 切换</span>
+    <span class="n">task</span><span class="p">:</span> <span class="n">PoolingTask</span>  <span class="c1"># encode / classify / score / score_pairs / rerank</span>
+    <span class="n">softmax</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">activation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">dimensions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>  <span class="c1"># Matryoshka：截取前 N 维</span>
+</code></pre></div>
+
+<p>OpenAI API <code>/v1/embeddings</code> 请求转成 <code>PoolingParams</code>，进 EngineCore。</p>
+<hr />
+<h2 id="5-pool-sample">5. 引擎层：Pool 替代 Sample</h2>
+<p><code>vllm/v1/pool/</code> 包含 pool task 的 metadata + 后处理。</p>
+<p>EngineCore 检测请求类型（generation vs pooling）：</p>
+<ul>
+<li>generation：走 Sampler</li>
+<li>pooling：走 Pooler</li>
+</ul>
+<p><code>vllm/v1/worker/gpu_model_runner.py</code> 的 <code>_get_sampling_or_pooling</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">execute_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scheduler_output</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="n">hidden_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">scheduler_output</span><span class="o">.</span><span class="n">has_pooling_requests</span><span class="p">:</span>
+        <span class="n">pooled</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">pooler</span><span class="p">(</span><span class="n">hidden_states</span><span class="p">,</span> <span class="n">pooling_metadata</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ModelRunnerOutput</span><span class="p">(</span><span class="n">pooled_data</span><span class="o">=</span><span class="n">pooled</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">compute_logits</span><span class="p">(</span><span class="n">hidden_states</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+        <span class="n">sampled</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampler</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">sampling_metadata</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ModelRunnerOutput</span><span class="p">(</span><span class="n">sampled_token_ids</span><span class="o">=</span><span class="n">sampled</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<p>一个 batch 通常<strong>纯 generation 或纯 pooling</strong>，混合较少（API 也不混合）。</p>
+<hr />
+<h2 id="6-embedding">6. 一次 embedding 请求生命周期</h2>
+<pre class="mermaid">flowchart TD
+    R0["POST /v1/embeddings&lt;br/&gt;{model: 'bge-large-en-v1.5', input: ['text 1', 'text 2']}"]
+    R1["1. Frontend&lt;br/&gt;每条 input → EngineCoreRequest&lt;br/&gt;PoolingParams(task=encode)"]
+    R2["2. Scheduler&lt;br/&gt;进 waiting → 调度 → running&lt;br/&gt;无 decode 阶段，prefill 完即 finish"]
+    R3["3. Worker forward&lt;br/&gt;prefill 整个 input&lt;br/&gt;hidden_states [num_tokens, hidden]"]
+    R4["4. Pooler.forward&lt;br/&gt;· CLS / Mean / Last 选其一&lt;br/&gt;· optional L2 normalize&lt;br/&gt;· optional Matryoshka 截断维度"]
+    R5["5. PoolingResult&lt;br/&gt;embedding: [hidden_dim] tensor"]
+    R6["6. Frontend 序列化&lt;br/&gt;{data: [{embedding: [...], index: 0}, ...]}"]
+
+    R0 --&gt; R1 --&gt; R2 --&gt; R3 --&gt; R4 --&gt; R5 --&gt; R6
+
+    classDef edge   fill:#fef3c7,stroke:#b45309,color:#1a1f29;
+    classDef engine fill:#eff5ff,stroke:#2563eb,color:#1a1f29;
+    classDef gpu    fill:#dcfce7,stroke:#15803d,color:#1a1f29;
+    class R0,R1,R6 edge;
+    class R2,R5 engine;
+    class R3,R4 gpu;</pre>
+<hr />
+<h2 id="7-vllm-embedding-sentence-transformers">7. 为什么 vLLM 跑 embedding 比 sentence-transformers 快？</h2>
+<table class="three-line">
+<thead>
+<tr>
+<th>维度</th>
+<th>sentence-transformers</th>
+<th>vLLM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Batching</td>
+<td>用户自己组 batch</td>
+<td>continuous batching 自动</td>
+</tr>
+<tr>
+<td>Attention</td>
+<td>HF transformers 朴素</td>
+<td>FlashAttention v2/v3</td>
+</tr>
+<tr>
+<td>KV / 注意力 layout</td>
+<td>连续 padding</td>
+<td>varlen 不 pad</td>
+</tr>
+<tr>
+<td>量化</td>
+<td>手动 bitsandbytes</td>
+<td>FP8 / AWQ / GPTQ 一键</td>
+</tr>
+<tr>
+<td>多并发</td>
+<td>单 batch 等</td>
+<td>iteration-level 动态进出</td>
+</tr>
+<tr>
+<td>多模型支持</td>
+<td>每模型一个进程</td>
+<td>LoRA / pooling task 同 base 复用</td>
+</tr>
+</tbody>
+</table>
+<p>实测在中等 batch 下 vLLM 跑 BGE-large 比 HF 实现快 3-5×。</p>
+<hr />
+<h2 id="8-bge-m3-pooler">8. BGE-M3：复合 pooler 范例</h2>
+<p>BGE-M3 输出 3 种表示：</p>
+<ul>
+<li>Dense（CLS pool + normalize）</li>
+<li>Sparse（每 token 计算稀疏权重）</li>
+<li>ColBERT（per-token embedding for late interaction）</li>
+</ul>
+<p><code>BgeM3Pooler</code>（<code>special.py:198</code>）继承 Pooler，<strong>一次 forward 输出三种结果</strong>：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BgeM3Pooler</span><span class="p">(</span><span class="n">Pooler</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hidden_states</span><span class="p">,</span> <span class="n">pooling_metadata</span><span class="p">):</span>
+        <span class="c1"># Dense</span>
+        <span class="n">dense</span> <span class="o">=</span> <span class="n">cls_pool</span><span class="p">(</span><span class="n">hidden_states</span><span class="p">)</span> <span class="err">→</span> <span class="n">normalize</span>
+        <span class="c1"># Sparse</span>
+        <span class="n">sparse_weights</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">linear</span><span class="p">(</span><span class="n">hidden_states</span><span class="p">))</span>
+        <span class="c1"># ColBERT-style</span>
+        <span class="n">col_embeds</span> <span class="o">=</span> <span class="n">linear_col</span><span class="p">(</span><span class="n">hidden_states</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"dense"</span><span class="p">:</span> <span class="n">dense</span><span class="p">,</span> <span class="s2">"sparse"</span><span class="p">:</span> <span class="n">sparse_weights</span><span class="p">,</span> <span class="s2">"colbert"</span><span class="p">:</span> <span class="n">col_embeds</span><span class="p">}</span>
+</code></pre></div>
+
+<p>API 通过 <code>PoolingTask</code> 控制返回哪个。</p>
+<hr />
+<h2 id="9-late-interactioncolbert">9. Late Interaction（ColBERT）</h2>
+<p><code>vllm/v1/pool/late_interaction.py</code> 实现 ColBERT 的 token-level 相似度。</p>
+<p>给定 query embedding 形状 <span class="math-inline">$[L_q, d]$</span> 和 doc embedding 形状 <span class="math-inline">$[L_d, d]$</span>（每行是一个 token 的 embedding），score 是 <strong>MaxSim</strong>——每个 query token 找它在 doc 里相似度最大的 token，再求和：</p>
+<div class="math-display">$$\text{score}(q, d) = \sum_{i=1}^{L_q} \max_{j=1, \ldots, L_d} \, q_i \cdot d_j$$</div>
+<p>这是 reranker 模型（rerank-large、bge-reranker）的核心。vLLM 把 token-level pooling（<code>TokenPooler</code>，返回 all token embeds）+ 外部 score 算法分开。</p>
+<hr />
+<h2 id="10-paged-attention">10. 与 paged attention 的关系</h2>
+<p>Embedding 模型大多是 <strong>encoder-only</strong>（BERT 风格）：</p>
+<ul>
+<li>无 causal mask</li>
+<li>一次 forward 完成</li>
+<li>KV 用一次就丢</li>
+</ul>
+<p>vLLM 的 attention backend 支持 <code>attn_type = "ENCODER_ONLY"</code>：</p>
+<ul>
+<li>不写 KV cache</li>
+<li>双向 attention（非 causal）</li>
+<li>可以走 FlashAttention 的 bidirectional 模式</li>
+</ul>
+<p>KV 不分块也不复用——单次 prefill 跑完即丢。PagedAttention 的 ref_cnt 此时其实没意义。</p>
+<hr />
+<h2 id="11">11. 工程要点</h2>
+<h3 id="111-batch">11.1 batch 设计</h3>
+<p>embedding 请求通常<strong>短而多</strong>（每条几十到几百 token）。max_num_batched_tokens 可以开大（16k+），充分发挥 prefill compute-bound 算力。</p>
+<h3 id="112-task">11.2 多 task 共存</h3>
+<p>DispatchPooler 让一个模型同时支持 encode / classify / score：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DispatchPooler</span><span class="p">(</span><span class="n">Pooler</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task_to_pooler</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">PoolingTask</span><span class="p">,</span> <span class="n">Pooler</span><span class="p">]):</span>
+        <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hidden</span><span class="p">,</span> <span class="n">metadata</span><span class="p">):</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">pooling_params</span><span class="o">.</span><span class="n">task</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_to_pooler</span><span class="p">[</span><span class="n">task</span><span class="p">](</span><span class="n">hidden</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="113-matryoshka">11.3 Matryoshka 维度截取</h3>
+<p><code>PoolingParams.dimensions = 256</code> → 取前 256 维。模型训练时已经把"最重要信号"放在前面（Matryoshka loss），用户根据延迟需求自选。</p>
+<h3 id="114-rerank">11.4 Rerank 部署</h3>
+<p>Reranker（cross-encoder）跟 embedding（bi-encoder）不一样：</p>
+<ul>
+<li>bi-encoder：分别 encode query / doc → 算相似度</li>
+<li>cross-encoder：拼接 <code>[CLS] query [SEP] doc</code> 一次 forward → 输出 score</li>
+</ul>
+<p>vLLM 通过 <code>score</code> task + Classify head 做 reranker。</p>
+<hr />
+<h2 id="12">12. 工程自检问答</h2>
+<p><strong>Q: 为什么 BGE 在 vLLM 上比 sentence-transformers 快？</strong>
+A: ①continuous batching 跨请求合并 prefill；②FlashAttention 比朴素 attention 快几倍；③varlen 不 pad；④量化（FP8/INT8）开箱即用。</p>
+<p><strong>Q: embedding 模型用得到 PagedAttention 吗？</strong>
+A: 用得到机制（注意力 kernel 一样），但前缀复用没意义（每个请求独立 encode 一次后扔）。Paged 主要价值是支持 varlen + 显存复用，对 embedding 还是有的。</p>
+<p><strong>Q: BGE-M3 三个输出怎么在 vLLM 里实现？</strong>
+A: 用 BgeM3Pooler 一次 forward 同时产出 dense / sparse / colbert，PoolingParams.task 控制哪个返回给客户端。</p>
+<p><strong>Q: Reranker 跟 embedding 怎么不同？</strong>
+A: Embedding 是 bi-encoder（独立 encode）；reranker 是 cross-encoder（拼接后一次 forward）。前者用 SequencePooler + classify activation 跑 (query, doc) 对，返回 0-1 score。</p>
+<p><strong>Q: Embedding 服务的容量怎么估？</strong>
+A: 主要看 prefill TFLOPs。短文本（128 token）+ BGE-large（~300M 参数）单 H100 能跑 500-1000 req/s。max_num_batched_tokens 开到 32k 充分利用。</p>
+<hr />
+<h2 id="_1">小结</h2>
+<ul>
+<li>vLLM 把 sampling 换成 pooling 即可服务 embedding/分类/score 模型，复用 continuous batching + FlashAttn + 量化收益。</li>
+<li>Pooler 体系分 Sequence / Token / Dispatch / Identity / 复合（BgeM3）几类，预训练时定型，用错即废。</li>
+<li>PoolingParams 通过 <code>task</code>、<code>activation</code>、<code>dimensions</code>（Matryoshka）控制输出形态。</li>
+<li>BGE-M3 等复合模型靠定制 Pooler 一次 forward 输出 dense / sparse / colbert 三种表示。</li>
+<li>Encoder-only 模型走 <code>attn_type=ENCODER_ONLY</code>，KV 不写也不复用，注意力是双向的。</li>
+</ul>
+<h2 id="_2">自检</h2>
+<ol>
+<li>你拿到一个声称兼容 BERT 的 embedding 模型，怎么判断该用 CLS、Mean 还是 Last pool？</li>
+<li>PoolingParams.dimensions=256 在 BGE-large 上意味着什么？为什么这能直接做？</li>
+<li>一个 RAG pipeline 想同时支持"找 top-k 向量"和"对 top-k rerank"，最少用几个 vLLM 实例？为什么？</li>
+<li>同一台 H100 上跑 BGE-large 与 Llama-70B，scheduler 会让它们共 batch 吗？为什么？</li>
+</ol>
+<h2 id="_3">下一步</h2>
+<ul>
+<li>横向延展：<a href="../06-interview/02-system-design.html"><code>02-system-design.md</code></a>（用 embedding+生成模型一起设计 RAG）</li>
+<li>想看源码：<code>vllm/model_executor/layers/pooler/</code>、<code>vllm/v1/pool/</code>、<code>vllm/pooling_params.py</code>、<code>vllm/model_executor/models/bert.py</code></li>
+<li>想从生产视角理解：<a href="../08-production-deployment/04-autoscaling-and-capacity.html"><code>08-production-deployment/04-autoscaling-and-capacity.md</code></a>（embedding 服务的容量规划与 GPU 选型）</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li><code>vllm/model_executor/layers/pooler/abstract.py:16</code>（Pooler）</li>
+<li><code>vllm/model_executor/layers/pooler/seqwise/methods.py:36,50,60</code>（CLS/Last/Mean）</li>
+<li><code>vllm/model_executor/layers/pooler/tokwise/methods.py</code></li>
+<li><code>vllm/model_executor/layers/pooler/activations.py:73,102,112</code></li>
+<li><code>vllm/model_executor/layers/pooler/special.py:25,198</code>（Dispatch / BgeM3）</li>
+<li><code>vllm/v1/pool/late_interaction.py</code>、<code>metadata.py</code></li>
+<li><code>vllm/pooling_params.py</code></li>
+<li><code>vllm/model_executor/models/bert.py</code>、<code>bge_m3.py</code>、<code>jina_embeddings_v3.py</code></li>
+</ul>
+<hr />
+<h2 id="see-also">See also</h2>
+<ul>
+<li><code>04-optimizations/01-quantization.md</code> —— embedding 模型怎么量化</li>
+<li><code>03-code-walkthrough/04-model-runner.md</code> —— pooling vs sampling 分支</li>
+<li><code>06-interview/02-system-design.md</code> —— RAG 服务设计</li>
+</ul></article>
+      <nav class="page-nav">
+<a class="prev" href="../09-advanced-features/04-lora-serving.html"><span class="label">上一篇</span><span class="title">04. LoRA Serving：一个 base model 服务多个微调版本</span></a>
+<span class="placeholder"></span>
+</nav>
+    </main>
+
+    <aside class="toc-rail" id="toc-rail">
+      <h4>本页大纲</h4>
+      <ul id="toc-list"></ul>
+    </aside>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'neutral',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      themeVariables: {
+        fontSize: '14px',
+        primaryColor: '#fbfaf6',
+        primaryTextColor: '#2a2723',
+        primaryBorderColor: '#8b1538',
+        lineColor: '#4d4a44',
+        secondaryColor: '#f3f1e8',
+        tertiaryColor: '#e9e6d9',
+        background: '#fbfaf6',
+        mainBkg: '#fbfaf6',
+        secondBkg: '#f3f1e8',
+        tertiaryTextColor: '#2a2723',
+        nodeBorder: '#c2bea9',
+        clusterBkg: '#f6f4eb',
+        clusterBorder: '#d6d3c4',
+        titleColor: '#8b1538',
+        edgeLabelBackground: '#fbfaf6',
+        textColor: '#2a2723',
+        noteBkgColor: '#f5ede0',
+        noteBorderColor: '#a86420',
+        noteTextColor: '#2a2723'
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true, htmlLabels: true }
+    });
+    document.querySelectorAll('pre.mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent; el.replaceWith(d);
+    });
+    document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+      var d = document.createElement('div'); d.className = 'mermaid';
+      d.textContent = el.textContent;
+      el.parentElement.replaceWith(d);
+    });
+    mermaid.run();
+  </script>
+
+  <script>
+    /* Auto-generate right-rail TOC from h2 / h3 */
+    (function() {
+      var article = document.getElementById('article');
+      var list = document.getElementById('toc-list');
+      var rail = document.getElementById('toc-rail');
+      if (!article || !list) return;
+      var hs = article.querySelectorAll('h2, h3');
+      if (hs.length < 2) { if (rail) rail.style.display = 'none'; return; }
+      hs.forEach(function(h) {
+        if (!h.id) {
+          h.id = h.textContent.trim()
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+        var li = document.createElement('li');
+        li.className = 'toc-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent.replace(/^\d+(\.\d+)*\.?\s*/, '');
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    })();
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false}
+              ],
+              throwOnError: false
+          });"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js"></script>
+  <script>
+    /* Lunr full-text search */
+    (function() {
+      var rootPrefix = "../";
+      var input = document.getElementById('search-input');
+      var resultsEl = document.getElementById('search-results');
+      var navEl = document.getElementById('sidebar-nav');
+      var docs = null, idx = null, loadPromise = null;
+
+      function ensureIndex() {
+        if (loadPromise) return loadPromise;
+        loadPromise = fetch(rootPrefix + 'search-index.json').then(r => r.json()).then(data => {
+          docs = {};
+          data.docs.forEach(d => { docs[d.id] = d; });
+          idx = lunr(function() {
+            this.ref('id');
+            this.field('title', { boost: 10 });
+            this.field('section', { boost: 3 });
+            this.field('body');
+            data.docs.forEach(d => this.add(d));
+          });
+        });
+        return loadPromise;
+      }
+      function escapeRe(s) { return s.replace(/[.*+?^$()|\[\]\\]/g, '\\$&'); }
+      function highlight(text, q) {
+        var ts = q.split(/\s+/).filter(t => t.length > 1).map(escapeRe);
+        if (!ts.length) return text;
+        return text.replace(new RegExp('(' + ts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      function snippet(body, q, n) {
+        if (!body) return '';
+        var ts = q.split(/\s+/).filter(t => t.length > 1);
+        if (!ts.length) return body.slice(0, n) + '...';
+        var lower = body.toLowerCase(), best = -1;
+        ts.forEach(function(t) {
+          var j = lower.indexOf(t.toLowerCase());
+          if (j >= 0 && (best === -1 || j < best)) best = j;
+        });
+        if (best === -1) return body.slice(0, n) + '...';
+        var s = Math.max(0, best - 40);
+        var e = Math.min(body.length, s + n);
+        var out = body.slice(s, e);
+        if (s > 0) out = '...' + out;
+        if (e < body.length) out = out + '...';
+        return out;
+      }
+      function render(q) {
+        if (!q) { resultsEl.classList.remove('active'); resultsEl.innerHTML = ''; if (navEl) navEl.style.display = ''; return; }
+        if (!idx) { resultsEl.innerHTML = '<div class="empty">建立索引...</div>'; resultsEl.classList.add('active'); return; }
+        var qres;
+        try { qres = idx.query(function(qb) {
+          q.split(/\s+/).filter(t => t.length > 0).forEach(t => {
+            qb.term(t, { boost: 5, usePipeline: true });
+            qb.term(t, { boost: 1, wildcard: lunr.Query.wildcard.TRAILING });
+          });
+        }); } catch (e) { qres = []; }
+        if (!qres.length) { resultsEl.innerHTML = '<div class="empty">无结果</div>'; resultsEl.classList.add('active'); return; }
+        var html = '';
+        qres.slice(0, 30).forEach(function(m) {
+          var d = docs[m.ref]; if (!d) return;
+          html += '<div class="result" onclick="window.location.href=\'' + rootPrefix + d.url + '\'">';
+          html += '<div class="result-section">' + (d.section || '') + '</div>';
+          html += '<div class="result-title">' + highlight(d.title, q) + '</div>';
+          html += '<div class="result-snippet">' + highlight(snippet(d.body, q, 130), q) + '</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.classList.add('active');
+        if (navEl) navEl.style.display = 'none';
+      }
+      if (input) {
+        var timer = null;
+        input.addEventListener('focus', ensureIndex);
+        input.addEventListener('input', function() {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          timer = setTimeout(function() { ensureIndex().then(function() { render(q); }); }, 120);
+        });
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { input.value = ''; render(''); }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
